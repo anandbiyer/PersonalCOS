@@ -1,0 +1,15 @@
+/** Canonical list of physical tables, used by cleanup / verify / tests. */
+export const ALL_TABLES = [
+  "tasks",
+  "initiatives",
+  "people",
+  "decisions",
+  "events",
+  "schedule_exceptions",
+  "audit",
+  "embeddings",
+  "reminder_rules",
+  "connector_tokens",
+  "invitations",
+  "users",
+] as const;

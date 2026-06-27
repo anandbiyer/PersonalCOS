@@ -1,0 +1,37 @@
+import { NextRequest } from "next/server";
+import { runCron } from "@/lib/cron/run";
+import { listTasks, replanOverdue } from "@/lib/db/repo/tasks";
+import { listInitiatives } from "@/lib/db/repo/initiatives";
+import { listEvents } from "@/lib/db/repo/events";
+import { listExceptions } from "@/lib/db/repo/exceptions";
+import { isStalled } from "@/lib/initiatives/invariant";
+import { projectDay } from "@/lib/planner/calendar";
+import { categorizeWaiting, dueToday, overdueTasks } from "@/lib/planner/reminders";
+import { startOfDay, endOfDay } from "@/lib/planner/dates";
+import { composeBrief } from "@/lib/brief/compose";
+import { dispatch } from "@/lib/notify";
+
+// cron/brief — 04:25 daily: synthesise & push the morning brief (FR25).
+export async function GET(req: NextRequest) {
+  return runCron(req, async (ownerId) => {
+    const now = new Date();
+    // FR8: roll missed/unscheduled work forward into capacity once a day.
+    const replanned = await replanOverdue(ownerId, { apply: true });
+    const tasks = await listTasks(ownerId);
+    const inits = await listInitiatives(ownerId);
+    const events = await listEvents(ownerId, startOfDay(now), endOfDay(now));
+    const exceptions = await listExceptions(ownerId, startOfDay(now), endOfDay(now));
+    const stalled = inits.filter(isStalled).map((i) => ({ name: i.name }));
+    const dayPlan = projectDay(now, { tasks, events, exceptions });
+    const brief = composeBrief("am", {
+      now,
+      dayPlan,
+      overdue: overdueTasks(tasks, now),
+      dueToday: dueToday(tasks, now),
+      waiting: categorizeWaiting(tasks, now),
+      stalled,
+    });
+    const replanNote = replanned.applied > 0 ? ` Replanned ${replanned.applied} item(s).` : "";
+    return dispatch({ ownerId, kind: "brief", message: `${brief.greeting}. ${brief.prose}${replanNote}` });
+  });
+}
