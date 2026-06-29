@@ -1,5 +1,6 @@
 import { classifyCapture, type Classification } from "@/lib/ai/classify";
 import { createTask, indexTask } from "@/lib/db/repo/tasks";
+import { extractDueDate } from "@/lib/capture/extract-date";
 import type { CaptureModality } from "@/lib/ai/types";
 
 export interface IngestResult {
@@ -23,10 +24,14 @@ export async function ingestText(
   if (classification.kind === "conversational") {
     return { filed: false, kind: "conversational", classification };
   }
+  // Parse a due date from the original text (FR4) so dated captures flow onto
+  // the calendar. Deterministic, so it runs the same online and offline.
+  const dueDate = extractDueDate(text, new Date());
   const task = await createTask(ownerId, {
     name: classification.title,
     portfolio: classification.portfolio,
     source,
+    dueDate,
   });
   await indexTask(ownerId, task.id, task.name);
   return { filed: true, kind: "actionable", classification, task };
