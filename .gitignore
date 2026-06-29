@@ -27,6 +27,9 @@ yarn-error.log*
 .env*.local
 .env.local
 
+# local-only secret scratch (Neon/Vercel prod values) — never commit
+prod-vercel.env
+
 # vercel
 .vercel
 
