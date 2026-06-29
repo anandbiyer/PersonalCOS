@@ -9,8 +9,10 @@ import { addDays, startOfDay } from "@/lib/planner/dates";
  * parsed here from the ORIGINAL capture text.
  *
  * Convention: matches the rest of the app, which operates in SERVER-LOCAL time
- * (see lib/planner/dates). A date with no clock time is returned at 00:00 so
- * hasClockTime() treats it as all-day; a time sets HH:MM so it renders timed.
+ * (see lib/planner/dates). A date with no explicit time defaults to 21:00 — a
+ * 9pm end-of-day deadline — so date-only captures (bills, rent, credit-card
+ * payments) surface as a timed "due by" activity rather than an all-day block.
+ * An explicit time ("7-8pm", "at 15:30") sets that HH:MM instead.
  *
  * KNOWN LIMITATION: no timezone conversion — "7pm"/"today" resolve in the
  * server's local time (UTC on Vercel), consistent with how the whole app
@@ -110,10 +112,13 @@ function parseDate(t: string, now: Date): Date | null {
   return null;
 }
 
+/** Default deadline time for date-only captures: 9pm (end-of-day reminder). */
+export const DEFAULT_DUE_MINUTES = 21 * 60;
+
 /**
  * Extract a due date from capture text. Returns null when no date/time is
  * present (the task stays undated). Time-only inputs ("7-8pm") resolve to today
- * at that time; date-only inputs resolve to that day at 00:00 (all-day).
+ * at that time; date-only inputs resolve to that day at the 9pm default.
  */
 export function extractDueDate(text: string, now: Date): Date | null {
   const t = text.toLowerCase();
@@ -122,9 +127,8 @@ export function extractDueDate(text: string, now: Date): Date | null {
   if (date === null && minutes === null) return null;
 
   const base = date ?? startOfDay(now);
-  if (minutes === null) return base; // date-only → all-day (00:00)
-
+  const mins = minutes ?? DEFAULT_DUE_MINUTES; // date-only → 9pm deadline
   const out = new Date(base);
-  out.setHours(Math.floor(minutes / 60), minutes % 60, 0, 0);
+  out.setHours(Math.floor(mins / 60), mins % 60, 0, 0);
   return out;
 }

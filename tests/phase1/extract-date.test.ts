@@ -7,13 +7,15 @@ import { hasClockTime, sameDay, startOfDay, addDays } from "@/lib/planner/dates"
 const NOW = new Date(2026, 5, 27, 9, 0, 0);
 
 describe("extractDueDate", () => {
-  it("parses an explicit month/day/year as an all-day date", () => {
+  it("parses an explicit month/day/year and applies the 9pm date-only default", () => {
     const d = extractDueDate("Pay LIC Insurance Bill by July 5, 2026", NOW)!;
     expect(d).not.toBeNull();
     expect(d.getFullYear()).toBe(2026);
     expect(d.getMonth()).toBe(6); // July
     expect(d.getDate()).toBe(5);
-    expect(hasClockTime(d)).toBe(false); // all-day
+    expect(d.getHours()).toBe(21); // 9pm default deadline (bills/rent/CC)
+    expect(d.getMinutes()).toBe(0);
+    expect(hasClockTime(d)).toBe(true);
   });
 
   it("parses a time range as today at the start time", () => {
@@ -24,10 +26,10 @@ describe("extractDueDate", () => {
     expect(hasClockTime(d)).toBe(true); // timed
   });
 
-  it("handles 'tomorrow' as the next day, all-day", () => {
+  it("handles 'tomorrow' as the next day at the 9pm default", () => {
     const d = extractDueDate("Renew the gym membership tomorrow", NOW)!;
     expect(sameDay(d, addDays(startOfDay(NOW), 1))).toBe(true);
-    expect(hasClockTime(d)).toBe(false);
+    expect(d.getHours()).toBe(21); // date-only → 9pm
   });
 
   it("resolves a weekday name to a strictly-future occurrence", () => {
