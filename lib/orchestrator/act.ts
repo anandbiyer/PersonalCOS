@@ -2,6 +2,7 @@ import { ingestText } from "@/lib/capture/ingest";
 import { listTasks, setTaskStatus } from "@/lib/db/repo/tasks";
 import { overdueTasks, dueToday, categorizeWaiting, isOpen } from "@/lib/planner/reminders";
 import { consultReply } from "@/lib/consult/consult";
+import { proposePlan, type ProposedPlan } from "./plan";
 import type { Intent } from "./router";
 
 /**
@@ -15,9 +16,10 @@ import type { Intent } from "./router";
  * capture is filed directly.
  */
 export interface OrchestratorAction {
-  type: "task_created" | "done" | "calendar" | "reminder" | "status" | "advice" | "handoff" | "noop";
+  type: "task_created" | "done" | "calendar" | "reminder" | "status" | "advice" | "handoff" | "noop" | "plan";
   label: string;
   undo?: { kind: string; id?: string; prev?: string };
+  plan?: ProposedPlan; // for type === "plan" — rendered as the revised plan card
 }
 
 export interface ActResult {
@@ -25,7 +27,7 @@ export interface ActResult {
   /** Text the reply should convey directly (status answer / advice). */
   content?: string;
   needsConfirm?: boolean;
-  plan?: unknown; // Phase 5
+  plan?: ProposedPlan | null;
 }
 
 const STOP = new Set([
@@ -58,15 +60,30 @@ export async function act(
         return { actions: [{ type: "noop", label: "" }], content: c.reply };
       }
       const dated = Boolean(r.task.dueDate) || intent === "calendar";
-      return {
-        actions: [
-          {
-            type: dated ? "calendar" : "task_created",
-            label: `${dated ? "📅 Added to calendar" : "✓ Task created"}: ${r.task.name}`,
-            undo: { kind: "delete_task", id: r.task.id },
-          },
-        ],
-      };
+      const actions: OrchestratorAction[] = [
+        {
+          type: dated ? "calendar" : "task_created",
+          label: `${dated ? "📅 Added to calendar" : "✓ Task created"}: ${r.task.name}`,
+          undo: { kind: "delete_task", id: r.task.id },
+        },
+      ];
+
+      // A calendar change may reshape the day → propose a re-plan (FR45).
+      // Nothing is committed until the manager agrees.
+      if (intent === "calendar") {
+        const plan = await proposePlan(ownerId);
+        if (plan) {
+          actions.push({ type: "plan", label: "Revised plan", plan });
+          return {
+            actions,
+            plan,
+            needsConfirm: true,
+            content:
+              "That reshapes today — here's how I'd refit it, with your study block untouched. Agree and I'll set reminders, or tell me what to change.",
+          };
+        }
+      }
+      return { actions };
     }
 
     case "completion": {

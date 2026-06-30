@@ -18,10 +18,13 @@ type Turn = {
   text: string;
   actionsJson: unknown[];
 };
+type PlanMove = { id: string; name: string; toDate: string; fromDate: string | null; reason: string };
+type ProposedPlan = { id: string; state: string; items: PlanMove[]; changeLog: string[] };
 type ActionCard = {
   type: string;
   label: string;
   undo?: { kind: string; id?: string; prev?: string };
+  plan?: ProposedPlan; // for type === "plan"
 };
 
 const SEEDS = [
@@ -39,6 +42,35 @@ const ACT_CLASS: Record<string, string> = {
 
 const dotColor = (p?: string) =>
   p === "office" ? "var(--office)" : p === "personal_dev" ? "var(--dev)" : p === "personal_life" ? "var(--life)" : "var(--muted)";
+
+/** Revised-plan card (FR45): the proposed moves, with Agree / Tweak. */
+function PlanCard({ plan, onAgree, onTweak, busy }: { plan: ProposedPlan; onAgree: () => void; onTweak: () => void; busy: boolean }) {
+  const fmtDay = (iso: string) => new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  return (
+    <div className="plancard revised">
+      <div className="ph">
+        📋 Revised plan
+        <span className="tagp">PROPOSED</span>
+      </div>
+      {plan.items.map((it) => (
+        <div className="pitem moved" key={it.id}>
+          <span className="ptm">{fmtDay(it.toDate)}</span>
+          <span className="ptt">
+            {it.name} — {it.reason}
+          </span>
+        </div>
+      ))}
+      <div className="planacts">
+        <button className="pbtn agree" onClick={onAgree} disabled={busy}>
+          Agree &amp; set reminders
+        </button>
+        <button className="pbtn tweak" onClick={onTweak} disabled={busy}>
+          Tweak
+        </button>
+      </div>
+    </div>
+  );
+}
 
 export function SessionView({
   name,
@@ -98,6 +130,23 @@ export function SessionView({
     router.refresh();
   }
 
+  async function agreePlan(planId: string) {
+    if (sending) return;
+    setSending(true);
+    try {
+      await fetch("/api/plan/commit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ planId }),
+      });
+      router.refresh();
+    } finally {
+      setSending(false);
+    }
+  }
+
+  const tweakPlan = () => send("Hold on — let me adjust the plan first.");
+
   return (
     <div className="sessionwrap">
       <div className="greet">
@@ -147,6 +196,17 @@ export function SessionView({
             <div className="msg cos" key={t.id}>
               <div className="ava">CS</div>
               <div style={{ display: "flex", flexDirection: "column", gap: 8, alignItems: "flex-start" }}>
+                {(t.actionsJson as ActionCard[])
+                  .filter((a) => a.type === "plan" && a.plan)
+                  .map((a, ai) => (
+                    <PlanCard
+                      key={`plan-${ai}`}
+                      plan={a.plan!}
+                      busy={sending}
+                      onAgree={() => agreePlan(a.plan!.id)}
+                      onTweak={tweakPlan}
+                    />
+                  ))}
                 {(t.actionsJson as ActionCard[])
                   .filter((a) => ACT_CLASS[a.type])
                   .map((a, ai) => (
