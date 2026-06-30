@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
+import { LocalDate } from "@/components/local-date";
 
 export type TaskRow = {
   id: string;
@@ -25,12 +26,6 @@ const SOURCE_LABEL: Record<string, string> = {
   voice: "🎙 voice",
   image: "📷 image",
 };
-
-function fmtDate(d: string | Date | null): string {
-  if (!d) return "—";
-  const date = typeof d === "string" ? new Date(d) : d;
-  return date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
-}
 
 export function TasksTable({ initial }: { initial: TaskRow[] }) {
   const router = useRouter();
@@ -96,7 +91,7 @@ export function TasksTable({ initial }: { initial: TaskRow[] }) {
                 <span className={cn("st", `st-${t.status}`)}>{t.status}</span>
               </td>
               <td>{t.owner ?? "—"}</td>
-              <td className="mono">{fmtDate(t.dueDate)}</td>
+              <td className="mono"><LocalDate value={t.dueDate} /></td>
               <td className="via">{SOURCE_LABEL[t.source] ?? t.source}</td>
             </tr>
           );
