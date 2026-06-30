@@ -30,13 +30,20 @@ export function anthropic(): Anthropic {
 }
 
 /**
+ * Routing/memory kinds (FR43/46): route, summarize, extract are cheap
+ * orchestration passes and run on Haiku; reasoning stays on Opus.
+ */
+export type ModelKind = "reasoning" | "fast" | "route" | "summarize" | "extract";
+
+/**
  * Pick a model for a portfolio. Office stays on the trusted first-party API;
  * the seam exists so a local/self-hosted route can be added for office later
  * without touching callers.
  */
 export function modelFor(
   portfolio: Portfolio | undefined,
-  kind: keyof typeof MODELS = "fast",
+  kind: ModelKind = "fast",
 ): string {
-  return MODELS[kind];
+  // reasoning → Opus; everything else (fast/route/summarize/extract) → Haiku.
+  return kind === "reasoning" ? MODELS.reasoning : MODELS.fast;
 }
