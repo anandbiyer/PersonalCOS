@@ -73,7 +73,9 @@ function cmpYMD(a: YMD, b: YMD): number {
  *  HH:MM to avoid false positives on bare numbers ("5 items"). */
 function parseTime(t: string): number | null {
   if (/\bnoon\b/.test(t)) return 12 * 60;
-  const ampm = t.match(/\b(\d{1,2})(?::(\d{2}))?\s*(?:-\s*\d{1,2}(?::\d{2})?\s*)?(am|pm)\b/);
+  // Minutes may use a colon OR a period ("5.30pm" — India/UK convention); the
+  // am/pm anchor disambiguates so a bare "5.30" is never misread as a time.
+  const ampm = t.match(/\b(\d{1,2})(?:[.:](\d{2}))?\s*(?:-\s*\d{1,2}(?:[.:]\d{2})?\s*)?(am|pm)\b/);
   if (ampm) {
     let h = parseInt(ampm[1], 10);
     const m = ampm[2] ? parseInt(ampm[2], 10) : 0;

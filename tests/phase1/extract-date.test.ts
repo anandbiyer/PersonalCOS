@@ -49,6 +49,12 @@ describe("extractDueDate (timezone-aware)", () => {
     expect(iso(extractDueDate("Call vendor at 15:30", NOW, TZ))).toBe("2026-06-27T19:30:00.000Z");
   });
 
+  it("accepts a period separator in the time (5.30pm = 5:30pm, India/UK style)", () => {
+    // 5:30pm EDT Jun 27 -> 21:30Z; must NOT fall back to the 9pm default.
+    expect(iso(extractDueDate("Drop son at violin class 5.30pm", NOW, TZ))).toBe("2026-06-27T21:30:00.000Z");
+    expect(iso(extractDueDate("Drop son at violin class 5:30pm", NOW, TZ))).toBe("2026-06-27T21:30:00.000Z");
+  });
+
   it("interprets the same text differently per timezone", () => {
     // 7pm in Kolkata (UTC+5:30) -> 13:30Z, vs 23:00Z for New York above.
     expect(iso(extractDueDate("Visit Hanuman temple 7-8pm", NOW, "Asia/Kolkata"))).toBe("2026-06-27T13:30:00.000Z");
