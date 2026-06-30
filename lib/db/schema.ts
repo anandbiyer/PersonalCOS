@@ -8,6 +8,7 @@ import {
   boolean,
   jsonb,
   date,
+  real,
   vector,
 } from "drizzle-orm/pg-core";
 
@@ -96,6 +97,18 @@ export const channel = pgEnum("channel", [
 /** Per-user visual theme (FR39). aurora = blue/violet/green, sunrise = yellow/white/orange. */
 export const themeName = pgEnum("theme_name", ["aurora", "sunrise"]);
 
+/* ---- Conversational upgrade (FR43–FR48) ---- */
+export const conversationPhase = pgEnum("conversation_phase", [
+  "open",
+  "work",
+  "adapt",
+  "advise",
+  "close",
+]);
+export const turnRole = pgEnum("turn_role", ["cos", "user"]);
+export const factKind = pgEnum("fact_kind", ["preference", "commitment", "fact"]);
+export const planState = pgEnum("plan_state", ["proposed", "revised", "agreed"]);
+
 /* ------------------------------------------------------------------ */
 /* Shared timestamp columns                                            */
 /* ------------------------------------------------------------------ */
@@ -121,6 +134,11 @@ export const users = pgTable("users", {
   channels: jsonb("channels").$type<Record<string, unknown>>().default({}).notNull(),
   timezone: text("timezone").notNull().default("Asia/Kolkata"),
   theme: themeName("theme").notNull().default("aurora"),
+  // Conversation-memory retention windows (FR47 §4.6.1). Verbatim in days;
+  // the other tiers in months. Durable knowledge is never timer-expired.
+  retentionDays: integer("retention_days").notNull().default(7),
+  completedArchiveMonths: integer("completed_archive_months").notNull().default(12),
+  summaryRetentionMonths: integer("summary_retention_months").notNull().default(18),
   ...timestamps,
 });
 
@@ -170,6 +188,9 @@ export const tasks = pgTable("tasks", {
   source: captureSource("source").notNull().default("text"),
   notes: text("notes"),
   completedAt: timestamp("completed_at", { withTimezone: true }),
+  // Completed one-off tasks archive out of the active/searchable set (FR47
+  // §4.6.1) — archive ≠ delete; the row + audit are retained.
+  archivedAt: timestamp("archived_at", { withTimezone: true }),
   ...timestamps,
 });
 
@@ -263,6 +284,10 @@ export const embeddings = pgTable("embeddings", {
   entityId: uuid("entity_id").notNull(),
   // Anthropic/Voyage embeddings; dimension finalised in Phase 1.
   embedding: vector("embedding", { dimensions: 1536 }),
+  // Memory lifecycle (FR47/§4.7): source = turn|fact|summary. Turn-embeddings
+  // expire with their turn; fact/summary embeddings follow their durable row.
+  source: text("source"),
+  expiresWithTurnId: uuid("expires_with_turn_id"),
   ...timestamps,
 });
 
@@ -326,6 +351,73 @@ export const connectorTokens = pgTable("connector_tokens", {
 });
 
 /* ------------------------------------------------------------------ */
+/* Conversation memory (FR43–FR48) — session thread + tiered memory    */
+/* ------------------------------------------------------------------ */
+
+/** One row per day-session. */
+export const conversations = pgTable("conversations", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  ownerId: uuid("owner_id").notNull(),
+  startedAt: timestamp("started_at", { withTimezone: true }).defaultNow().notNull(),
+  phase: conversationPhase("phase").notNull().default("open"),
+  ...timestamps,
+});
+
+/** Raw verbatim turns (T1) — the ONLY tier subject to retention + completion-
+ *  pruning (FR47). actions_json records what the turn wrote (for undo). */
+export const conversationTurns = pgTable("conversation_turns", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  ownerId: uuid("owner_id").notNull(),
+  conversationId: uuid("conversation_id").references(() => conversations.id, {
+    onDelete: "cascade",
+  }),
+  role: turnRole("role").notNull(),
+  text: text("text").notNull(),
+  intent: text("intent"),
+  actionsJson: jsonb("actions_json").$type<unknown[]>().default([]).notNull(),
+  refsTaskId: uuid("refs_task_id"),
+  pruneEligible: boolean("prune_eligible").notNull().default(false),
+  ...timestamps,
+});
+
+/** Day-summaries (T2) — durable, fully retrievable; roll off ~18 mo (§4.6.1). */
+export const conversationSummaries = pgTable("conversation_summaries", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  ownerId: uuid("owner_id").notNull(),
+  date: date("date").notNull(),
+  summaryText: text("summary_text").notNull(),
+  openThreadsJson: jsonb("open_threads_json").$type<unknown[]>().default([]).notNull(),
+  ...timestamps,
+});
+
+/** Durable facts (T3) — coded; never_expire guards facts/decisions/recurring
+ *  from every timer (removable only by explicit user delete, FR48). */
+export const memoryFacts = pgTable("memory_facts", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  ownerId: uuid("owner_id").notNull(),
+  kind: factKind("kind").notNull(),
+  subject: text("subject"),
+  value: text("value").notNull(),
+  sourceTurnId: uuid("source_turn_id"),
+  confidence: real("confidence"),
+  active: boolean("active").notNull().default(true),
+  neverExpire: boolean("never_expire").notNull().default(true),
+  ...timestamps,
+});
+
+/** Negotiated plans (FR45) — only an agreed plan writes the calendar. */
+export const plans = pgTable("plans", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  ownerId: uuid("owner_id").notNull(),
+  date: date("date").notNull(),
+  state: planState("state").notNull().default("proposed"),
+  itemsJson: jsonb("items_json").$type<unknown[]>().default([]).notNull(),
+  changeLogJson: jsonb("change_log_json").$type<unknown[]>().default([]).notNull(),
+  agreedAt: timestamp("agreed_at", { withTimezone: true }),
+  ...timestamps,
+});
+
+/* ------------------------------------------------------------------ */
 /* Type helpers                                                        */
 /* ------------------------------------------------------------------ */
 
@@ -336,6 +428,13 @@ export type NewTask = typeof tasks.$inferInsert;
 export type Initiative = typeof initiatives.$inferSelect;
 export type NewInitiative = typeof initiatives.$inferInsert;
 export type Invitation = typeof invitations.$inferSelect;
+export type Conversation = typeof conversations.$inferSelect;
+export type ConversationTurn = typeof conversationTurns.$inferSelect;
+export type NewConversationTurn = typeof conversationTurns.$inferInsert;
+export type ConversationSummary = typeof conversationSummaries.$inferSelect;
+export type MemoryFact = typeof memoryFacts.$inferSelect;
+export type NewMemoryFact = typeof memoryFacts.$inferInsert;
+export type Plan = typeof plans.$inferSelect;
 
 /** Tables that carry owner_id and are isolated by RLS on app.owner_id. */
 export const OWNER_SCOPED_TABLES = [
@@ -349,4 +448,9 @@ export const OWNER_SCOPED_TABLES = [
   "embeddings",
   "reminder_rules",
   "connector_tokens",
+  "conversations",
+  "conversation_turns",
+  "conversation_summaries",
+  "memory_facts",
+  "plans",
 ] as const;

@@ -12,4 +12,9 @@ export const ALL_TABLES = [
   "connector_tokens",
   "invitations",
   "users",
+  "conversations",
+  "conversation_turns",
+  "conversation_summaries",
+  "memory_facts",
+  "plans",
 ] as const;

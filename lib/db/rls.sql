@@ -20,7 +20,9 @@ DECLARE
   owner_tables text[] := ARRAY[
     'initiatives','tasks','people','decisions','events',
     'schedule_exceptions','audit','embeddings','reminder_rules',
-    'connector_tokens'
+    'connector_tokens',
+    'conversations','conversation_turns','conversation_summaries',
+    'memory_facts','plans'
   ];
 BEGIN
   FOREACH t IN ARRAY owner_tables LOOP
