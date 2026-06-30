@@ -1,76 +1,61 @@
 import { describe, it, expect } from "vitest";
 import { extractDueDate } from "@/lib/capture/extract-date";
-import { hasClockTime, sameDay, startOfDay, addDays } from "@/lib/planner/dates";
 
-// Fixed anchor: Saturday-agnostic; tests assert weekday via getDay(), not a
-// hardcoded calendar. 2026-06-27 09:00 local.
-const NOW = new Date(2026, 5, 27, 9, 0, 0);
+// Timezone-explicit + machine-independent: we pass an IANA tz and a fixed UTC
+// instant, and assert the exact resulting UTC instant. America/New_York is EDT
+// (UTC-4) in summer and EST (UTC-5) in December 2026.
+const TZ = "America/New_York";
+const NOW = new Date("2026-06-27T16:00:00Z"); // noon EDT, Sat Jun 27 2026
+const DEC = new Date("2026-12-01T17:00:00Z"); // noon EST, Dec 1 2026
 
-describe("extractDueDate", () => {
-  it("parses an explicit month/day/year and applies the 9pm date-only default", () => {
-    const d = extractDueDate("Pay LIC Insurance Bill by July 5, 2026", NOW)!;
-    expect(d).not.toBeNull();
-    expect(d.getFullYear()).toBe(2026);
-    expect(d.getMonth()).toBe(6); // July
-    expect(d.getDate()).toBe(5);
-    expect(d.getHours()).toBe(21); // 9pm default deadline (bills/rent/CC)
-    expect(d.getMinutes()).toBe(0);
-    expect(hasClockTime(d)).toBe(true);
+const iso = (d: Date | null) => d?.toISOString() ?? null;
+
+describe("extractDueDate (timezone-aware)", () => {
+  it("date-only gets the 9pm local default, stored as a UTC instant", () => {
+    // 9pm EDT Jul 5 -> 01:00Z Jul 6
+    expect(iso(extractDueDate("Pay LIC Insurance Bill by July 5, 2026", NOW, TZ))).toBe("2026-07-06T01:00:00.000Z");
   });
 
-  it("parses a time range as today at the start time", () => {
-    const d = extractDueDate("Visit Hanuman temple 7-8pm", NOW)!;
-    expect(sameDay(d, NOW)).toBe(true);
-    expect(d.getHours()).toBe(19);
-    expect(d.getMinutes()).toBe(0);
-    expect(hasClockTime(d)).toBe(true); // timed
+  it("a time range resolves to today at the local start time", () => {
+    // 7pm EDT Jun 27 -> 23:00Z
+    expect(iso(extractDueDate("Visit Hanuman temple 7-8pm", NOW, TZ))).toBe("2026-06-27T23:00:00.000Z");
   });
 
-  it("handles 'tomorrow' as the next day at the 9pm default", () => {
-    const d = extractDueDate("Renew the gym membership tomorrow", NOW)!;
-    expect(sameDay(d, addDays(startOfDay(NOW), 1))).toBe(true);
-    expect(d.getHours()).toBe(21); // date-only → 9pm
+  it("'tomorrow' is the next local day at 9pm", () => {
+    // 9pm EDT Jun 28 -> 01:00Z Jun 29
+    expect(iso(extractDueDate("Renew the gym membership tomorrow", NOW, TZ))).toBe("2026-06-29T01:00:00.000Z");
   });
 
-  it("resolves a weekday name to a strictly-future occurrence", () => {
-    const d = extractDueDate("Finish the deck by friday", NOW)!;
-    expect(d.getDay()).toBe(5); // Friday
-    expect(d.getTime()).toBeGreaterThan(startOfDay(NOW).getTime());
+  it("resolves a weekday to a strictly-future local Friday", () => {
+    const d = extractDueDate("Finish the deck by friday", NOW, TZ)!;
+    const wd = new Intl.DateTimeFormat("en-US", { timeZone: TZ, weekday: "long" }).format(d);
+    expect(wd).toBe("Friday");
+    expect(d.getTime()).toBeGreaterThan(NOW.getTime());
   });
 
-  it("assumes the current year for a bare month/day in the future", () => {
-    const d = extractDueDate("Dentist appointment July 5", NOW)!;
-    expect(d.getFullYear()).toBe(2026);
-    expect(d.getMonth()).toBe(6);
-    expect(d.getDate()).toBe(5);
+  it("assumes current year for a bare month/day, rolling to next year if passed", () => {
+    expect(iso(extractDueDate("Dentist appointment July 5", NOW, TZ))).toBe("2026-07-06T01:00:00.000Z");
+    expect(iso(extractDueDate("File taxes by July 5", DEC, TZ))).toBe("2027-07-06T01:00:00.000Z");
   });
 
-  it("rolls a passed bare month/day to next year", () => {
-    const dec = new Date(2026, 11, 1, 9, 0, 0); // Dec 1 2026
-    const d = extractDueDate("File taxes by July 5", dec)!;
-    expect(d.getFullYear()).toBe(2027);
-    expect(d.getMonth()).toBe(6);
+  it("supports 'in N days', ISO, and '5th of august'", () => {
+    expect(iso(extractDueDate("Follow up in 3 days", NOW, TZ))).toBe("2026-07-01T01:00:00.000Z");
+    // Dec 25 9pm EST -> 02:00Z Dec 26
+    expect(iso(extractDueDate("Holiday on 2026-12-25", NOW, TZ))).toBe("2026-12-26T02:00:00.000Z");
+    expect(iso(extractDueDate("Submit report by 5th of august", NOW, TZ))).toBe("2026-08-06T01:00:00.000Z");
   });
 
-  it("supports 'in N days' and ISO and '5th of august'", () => {
-    expect(sameDay(extractDueDate("Follow up in 3 days", NOW)!, addDays(startOfDay(NOW), 3))).toBe(true);
-    const iso = extractDueDate("Holiday on 2026-12-25", NOW)!;
-    expect(iso.getMonth()).toBe(11);
-    expect(iso.getDate()).toBe(25);
-    const aug = extractDueDate("Submit report by 5th of august", NOW)!;
-    expect(aug.getMonth()).toBe(7);
-    expect(aug.getDate()).toBe(5);
+  it("parses a 24h time as today at that local time", () => {
+    expect(iso(extractDueDate("Call vendor at 15:30", NOW, TZ))).toBe("2026-06-27T19:30:00.000Z");
   });
 
-  it("parses a 24h time as today at that time", () => {
-    const d = extractDueDate("Call vendor at 15:30", NOW)!;
-    expect(sameDay(d, NOW)).toBe(true);
-    expect(d.getHours()).toBe(15);
-    expect(d.getMinutes()).toBe(30);
+  it("interprets the same text differently per timezone", () => {
+    // 7pm in Kolkata (UTC+5:30) -> 13:30Z, vs 23:00Z for New York above.
+    expect(iso(extractDueDate("Visit Hanuman temple 7-8pm", NOW, "Asia/Kolkata"))).toBe("2026-06-27T13:30:00.000Z");
   });
 
   it("returns null when there is no date or time", () => {
-    expect(extractDueDate("Review the quarterly numbers", NOW)).toBeNull();
-    expect(extractDueDate("Buy 5 items at the store", NOW)).toBeNull();
+    expect(extractDueDate("Review the quarterly numbers", NOW, TZ)).toBeNull();
+    expect(extractDueDate("Buy 5 items at the store", NOW, TZ)).toBeNull();
   });
 });

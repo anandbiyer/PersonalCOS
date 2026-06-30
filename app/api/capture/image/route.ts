@@ -59,7 +59,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "nothing actionable found in image" }, { status: 422 });
   }
 
+  const tz = (form.get("tz") as string) || undefined; // device timezone (FR42)
   const ownerId = await getCurrentOwnerId();
-  const result = await ingestText(ownerId, text, "image");
+  const result = await ingestText(ownerId, text, "image", tz);
   return NextResponse.json({ ...result, parsed: text, blobUrl });
 }

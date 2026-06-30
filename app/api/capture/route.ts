@@ -11,6 +11,7 @@ import { ingestText } from "@/lib/capture/ingest";
 const Body = z.object({
   text: z.string().min(1).max(4000),
   source: z.enum(["text", "voice", "image"]).optional(),
+  tz: z.string().max(64).optional(), // capturing device's IANA timezone (FR42)
 });
 
 export async function POST(req: NextRequest) {
@@ -27,6 +28,6 @@ export async function POST(req: NextRequest) {
   }
 
   const ownerId = await getCurrentOwnerId();
-  const result = await ingestText(ownerId, parsed.data.text, parsed.data.source ?? "text");
+  const result = await ingestText(ownerId, parsed.data.text, parsed.data.source ?? "text", parsed.data.tz);
   return NextResponse.json(result);
 }

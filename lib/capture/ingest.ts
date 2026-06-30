@@ -19,14 +19,16 @@ export async function ingestText(
   ownerId: string,
   text: string,
   source: CaptureModality,
+  tz?: string,
 ): Promise<IngestResult> {
   const classification = await classifyCapture(text);
   if (classification.kind === "conversational") {
     return { filed: false, kind: "conversational", classification };
   }
-  // Parse a due date from the original text (FR4) so dated captures flow onto
-  // the calendar. Deterministic, so it runs the same online and offline.
-  const dueDate = extractDueDate(text, new Date());
+  // Parse a due date from the original text (FR4/FR40) in the capturing
+  // device's timezone (FR42) so dated captures flow onto the calendar at the
+  // right local day/time. Deterministic, so it runs the same online and offline.
+  const dueDate = extractDueDate(text, new Date(), tz);
   const task = await createTask(ownerId, {
     name: classification.title,
     portfolio: classification.portfolio,

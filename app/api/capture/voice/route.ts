@@ -36,7 +36,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "empty transcription" }, { status: 422 });
   }
 
+  const tz = (form.get("tz") as string) || undefined; // device timezone (FR42)
   const ownerId = await getCurrentOwnerId();
-  const result = await ingestText(ownerId, text, "voice");
+  const result = await ingestText(ownerId, text, "voice", tz);
   return NextResponse.json({ ...result, transcript: text });
 }

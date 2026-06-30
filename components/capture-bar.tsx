@@ -14,6 +14,16 @@ function labelFor(p?: string): string {
   return "your ledger";
 }
 
+/** The capturing device's IANA timezone, so dates parse in the user's local
+ *  time (FR42). undefined if unavailable. */
+function clientTz(): string | undefined {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 /**
  * Pinned multi-modal capture bar (FR29): text, voice (MediaRecorder -> STT),
  * and image (upload -> Blob + Vision). All funnel through classify -> ledger.
@@ -56,7 +66,7 @@ export function CaptureBar() {
       const res = await fetch("/api/capture", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: value, source: "text" }),
+        body: JSON.stringify({ text: value, source: "text", tz: clientTz() }),
       });
       const data = await res.json();
       if (res.ok && data.filed) setText("");
@@ -70,6 +80,8 @@ export function CaptureBar() {
 
   async function postForm(url: string, form: FormData) {
     setBusy(true);
+    const tz = clientTz();
+    if (tz) form.append("tz", tz);
     try {
       const res = await fetch(url, { method: "POST", body: form });
       const data = await res.json();
