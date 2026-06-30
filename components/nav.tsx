@@ -14,7 +14,7 @@ type Group = { mode: string; items: Item[] };
 
 // Left nav grouped by the three systems + Household (mockup IA).
 const GROUPS: Group[] = [
-  { mode: "Brief", items: [{ href: "/brief", label: "Daily brief" }] },
+  { mode: "Brief", items: [{ href: "/brief", label: "Today" }] },
   {
     mode: "System of Record",
     items: [

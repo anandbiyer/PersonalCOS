@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { getCurrentOwnerId } from "@/lib/auth";
-import { setTaskStatus } from "@/lib/db/repo/tasks";
+import { setTaskStatus, deleteTask } from "@/lib/db/repo/tasks";
 import { taskStatus } from "@/lib/db/schema";
 
 const Body = z.object({
@@ -29,4 +29,11 @@ export async function PATCH(
     return NextResponse.json({ error: "not found" }, { status: 404 });
   }
   return NextResponse.json({ task });
+}
+
+export async function DELETE(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const { id } = await ctx.params;
+  const ownerId = await getCurrentOwnerId();
+  await deleteTask(ownerId, id);
+  return NextResponse.json({ ok: true });
 }

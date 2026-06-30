@@ -4,18 +4,9 @@ import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 
-type Mode = "text" | "voice" | "image";
 type Toast = { msg: string; tone: "ok" | "warn" } | null;
 
-function labelFor(p?: string): string {
-  if (p === "office") return "Office";
-  if (p === "personal_dev") return "Personal Dev";
-  if (p === "personal_life") return "Personal Life";
-  return "your ledger";
-}
-
-/** The capturing device's IANA timezone, so dates parse in the user's local
- *  time (FR42). undefined if unavailable. */
+/** The capturing device's IANA timezone (FR42). */
 function clientTz(): string | undefined {
   try {
     return Intl.DateTimeFormat().resolvedOptions().timeZone || undefined;
@@ -25,12 +16,12 @@ function clientTz(): string | undefined {
 }
 
 /**
- * Pinned multi-modal capture bar (FR29): text, voice (MediaRecorder -> STT),
- * and image (upload -> Blob + Vision). All funnel through classify -> ledger.
+ * The single conversational composer (FR43 — one chat bar). Text routes to the
+ * orchestrator; Voice and Image remain here as multimodal capture (FR29). No
+ * mode tabs or recipient picker (§5.1.6) — the agent infers intent.
  */
 export function CaptureBar() {
   const router = useRouter();
-  const [mode, setMode] = useState<Mode>("text");
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const [recording, setRecording] = useState(false);
@@ -42,20 +33,7 @@ export function CaptureBar() {
 
   function flash(t: Toast) {
     setToast(t);
-    setTimeout(() => setToast(null), 3500);
-  }
-
-  function handleResult(data: { filed?: boolean; classification?: { portfolio?: string }; error?: string }, res: Response) {
-    if (!res.ok) {
-      flash({ msg: data.error ?? "Capture failed — try again", tone: "warn" });
-      return;
-    }
-    if (data.filed) {
-      flash({ msg: `Filed to ${labelFor(data.classification?.portfolio)}`, tone: "ok" });
-      router.refresh();
-    } else {
-      flash({ msg: "Looks like a thought — not filed (use Consult)", tone: "warn" });
-    }
+    setTimeout(() => setToast(null), 3000);
   }
 
   async function sendText() {
@@ -63,16 +41,20 @@ export function CaptureBar() {
     if (!value || busy) return;
     setBusy(true);
     try {
-      const res = await fetch("/api/capture", {
+      const res = await fetch("/api/orchestrator", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: value, source: "text", tz: clientTz() }),
+        body: JSON.stringify({ message: value, tz: clientTz() }),
       });
       const data = await res.json();
-      if (res.ok && data.filed) setText("");
-      handleResult(data, res);
+      if (res.ok) {
+        setText("");
+        router.refresh(); // the session thread re-renders with the new turns
+      } else {
+        flash({ msg: data.error ?? "Something went wrong", tone: "warn" });
+      }
     } catch {
-      flash({ msg: "Capture failed — try again", tone: "warn" });
+      flash({ msg: "Network error — try again", tone: "warn" });
     } finally {
       setBusy(false);
     }
@@ -85,7 +67,12 @@ export function CaptureBar() {
     try {
       const res = await fetch(url, { method: "POST", body: form });
       const data = await res.json();
-      handleResult(data, res);
+      if (res.ok) {
+        flash({ msg: data.filed ? "Captured" : "Noted", tone: "ok" });
+        router.refresh();
+      } else {
+        flash({ msg: data.error ?? "Capture failed", tone: "warn" });
+      }
     } catch {
       flash({ msg: "Capture failed — try again", tone: "warn" });
     } finally {
@@ -131,67 +118,54 @@ export function CaptureBar() {
   return (
     <div className="capture">
       <div className="capwrap">
-        <div className="modes">
-          {(["text", "voice", "image"] as const).map((m) => (
-            <button
-              key={m}
-              className={cn("modebtn", mode === m && "on")}
-              onClick={() => setMode(m)}
-            >
-              {m === "text" ? "⌨ Text" : m === "voice" ? "🎙 Voice" : "📷 Image"}
-            </button>
-          ))}
-          <span className="modehint">capture · classify · file</span>
+        <div className="capbox">
+          <svg className="ico" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M12 3v18M3 12h18" />
+          </svg>
+          <input
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && sendText()}
+            placeholder="Talk to your Chief of Staff — add something, give an update, or ask…"
+            aria-label="Message your chief of staff"
+          />
+          <span className="modehint">you talk · I file, schedule &amp; remind</span>
+          <button
+            className={cn("iconbtn", recording && "act")}
+            onClick={toggleRecording}
+            disabled={busy}
+            title="Voice"
+            aria-label="Voice capture"
+          >
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <rect x="9" y="3" width="6" height="11" rx="3" />
+              <path d="M5 11a7 7 0 0 0 14 0M12 18v3" />
+            </svg>
+          </button>
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/png,image/jpeg,image/webp,image/gif"
+            hidden
+            onChange={onImagePicked}
+          />
+          <button
+            className="iconbtn"
+            onClick={() => fileRef.current?.click()}
+            disabled={busy}
+            title="Image"
+            aria-label="Image capture"
+          >
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <rect x="3" y="5" width="18" height="14" rx="2" />
+              <circle cx="9" cy="11" r="2" />
+              <path d="M3 17l5-4 4 3 3-2 6 5" />
+            </svg>
+          </button>
+          <button className="send" onClick={sendText} disabled={busy || !text.trim()}>
+            {busy ? "…" : "Send →"}
+          </button>
         </div>
-
-        {mode === "text" && (
-          <div className="capbox">
-            <input
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && sendText()}
-              placeholder="Capture anything — a task, a note, a situation…"
-              aria-label="Capture input"
-            />
-            <button className="send" onClick={sendText} disabled={busy || !text.trim()}>
-              {busy ? "…" : "Send →"}
-            </button>
-          </div>
-        )}
-
-        {mode === "voice" && (
-          <div className="capbox">
-            <span style={{ flex: 1, color: "var(--muted)", fontSize: 14 }}>
-              {recording ? "● Recording… tap stop when done" : busy ? "Transcribing…" : "Tap record and speak your note"}
-            </span>
-            <button
-              className="send"
-              onClick={toggleRecording}
-              disabled={busy}
-              style={recording ? { background: "var(--red)" } : undefined}
-            >
-              {recording ? "■ Stop" : "🎙 Record"}
-            </button>
-          </div>
-        )}
-
-        {mode === "image" && (
-          <div className="capbox">
-            <span style={{ flex: 1, color: "var(--muted)", fontSize: 14 }}>
-              {busy ? "Reading image…" : "Upload a photo or screenshot (itinerary, bill, whiteboard)"}
-            </span>
-            <input
-              ref={fileRef}
-              type="file"
-              accept="image/png,image/jpeg,image/webp,image/gif"
-              hidden
-              onChange={onImagePicked}
-            />
-            <button className="send" onClick={() => fileRef.current?.click()} disabled={busy}>
-              📷 Choose
-            </button>
-          </div>
-        )}
       </div>
       {toast && <div className={cn("toast", "on", toast.tone === "warn" && "warn")}>{toast.msg}</div>}
     </div>

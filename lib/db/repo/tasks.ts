@@ -47,6 +47,13 @@ export async function createTask(ownerId: string, input: CreateTaskInput) {
   });
 }
 
+/** Hard-delete a task — used for in-thread undo of a just-created task (FR43). */
+export async function deleteTask(ownerId: string, id: string) {
+  return withOwner(ownerId, async (tx) => {
+    await tx.delete(tasks).where(and(eq(tasks.id, id), eq(tasks.ownerId, ownerId)));
+  });
+}
+
 export async function listTasks(ownerId: string, filter: ListTasksFilter = {}) {
   return withOwner(ownerId, async (tx) => {
     const conds = [];
