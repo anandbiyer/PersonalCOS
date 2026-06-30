@@ -308,7 +308,59 @@ button{font-family:inherit;cursor:pointer;border:none;background:none;color:inhe
 .ibtn.acc{color:#fff;background:var(--green)}.ibtn.acc:hover{filter:brightness(1.06)}
 .ibtn.dec{color:var(--muted);border:1.5px solid var(--line)}.ibtn.dec:hover{color:var(--red);border-color:var(--red-s)}
 .empty{color:var(--faint);font-size:13px;text-align:center;padding:36px;border:1px dashed var(--line);border-radius:var(--r);font-family:var(--mono)}
+.sseed{display:flex;gap:8px;margin:0 0 10px;flex-wrap:wrap}
+.sseed button{font-size:11.5px;font-weight:600;color:var(--muted);background:var(--surface);border:1px solid var(--line);padding:7px 13px;border-radius:22px;transition:.15s}
+.sseed button:hover{color:var(--ink);box-shadow:0 6px 16px -10px rgba(45,127,249,.4)}
+.plancard{background:var(--surface);border:1px solid var(--line);border-radius:16px;border-top-left-radius:5px;padding:15px 17px;box-shadow:0 10px 28px -20px rgba(27,36,64,.4);max-width:100%}
+.plancard.revised{border-color:var(--amber);background:linear-gradient(180deg,var(--amber-s),var(--surface))}
+.plancard.agreed{border-color:var(--green)}
+.plancard .ph{font-weight:800;font-size:13.5px;margin-bottom:11px;display:flex;align-items:center;gap:8px}
+.plancard .ph .tagp{font-family:var(--mono);font-size:9px;font-weight:700;letter-spacing:1px;padding:2px 8px;border-radius:20px;margin-left:auto}
+.plancard.revised .ph .tagp{background:var(--amber);color:#fff}
+.plancard.agreed .ph .tagp{background:var(--green);color:#fff}
+.pitem{display:flex;gap:12px;padding:8px 0;border-bottom:1px solid var(--line2);font-size:13px;align-items:center}
+.pitem:last-of-type{border-bottom:none}
+.pitem .ptm{font-family:var(--mono);font-size:11.5px;color:var(--muted);width:74px;flex:0 0 auto}
+.pitem .ptt{flex:1}
+.pitem.moved{background:var(--amber-s);margin:0 -8px;padding:8px;border-radius:8px;border-bottom:none}
+.pitem.moved .ptm,.pitem.moved .ptt{color:#9a6410;font-weight:600}
+.pitem .pdot{width:8px;height:8px;border-radius:3px;flex:0 0 auto}
+.planacts{display:flex;gap:9px;margin-top:13px}
+.pbtn{font-size:12.5px;font-weight:700;padding:9px 16px;border-radius:11px;transition:.15s}
+.pbtn.agree{color:#fff;background:var(--green)}.pbtn.agree:hover{filter:brightness(1.06)}
+.pbtn.tweak{color:var(--muted);border:1.5px solid var(--line)}.pbtn.tweak:hover{color:var(--ink)}
+.actcard{display:inline-flex;align-items:center;gap:9px;border-radius:12px;padding:9px 13px;font-size:12.5px;font-weight:700}
+.actcard.add{background:var(--blue-s);color:var(--blue)} .actcard.done{background:var(--green-s);color:var(--green)}
+.actcard.cal{background:var(--violet-s);color:var(--violet)} .actcard.rem{background:var(--amber-s);color:var(--amber)}
+.actcard .undo{font-family:var(--mono);font-size:10px;font-weight:600;opacity:.7;margin-left:4px;border-left:1px solid currentColor;padding-left:8px;cursor:pointer}
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+.memwrap{max-width:760px;margin:0 auto}
+.daydiv{display:flex;align-items:center;gap:12px;margin:4px 0 16px;color:var(--faint)}
+.daydiv::before,.daydiv::after{content:"";flex:1;height:1px;background:var(--line)}
+.daydiv span{font-family:var(--mono);font-size:10px;font-weight:600;letter-spacing:1px;text-transform:uppercase}
+.memcard{background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:20px 22px;margin-bottom:16px;box-shadow:0 12px 34px -24px rgba(27,36,64,.3)}
+.memh{font-size:15px;font-weight:800;display:flex;align-items:center;gap:9px;margin-bottom:8px}
+.memh .memcount{margin-left:auto;font-size:11px;font-weight:600;color:var(--muted);background:var(--line);padding:3px 10px;border-radius:20px}
+.memp{font-size:12.5px;color:var(--muted);line-height:1.6;margin-bottom:14px}
+.memp b{color:var(--ink)}
+.slidewrap{display:flex;align-items:center;gap:16px}
+.slidewrap input[type=range]{flex:1;accent-color:var(--blue)}
+.slideval{font-family:var(--mono);font-size:14px;font-weight:600}
+.slidehint{font-size:10px;color:var(--faint);margin-left:8px}
+.memwarn{margin-top:12px;background:var(--amber-s);border-radius:11px;padding:11px 14px;font-size:12px;color:#9a6410;font-weight:600}
+.factrow{display:flex;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid var(--line2)}
+.factrow:last-child{border-bottom:none}
+.factrow .fk{font-family:var(--mono);font-size:9px;font-weight:700;letter-spacing:1px;padding:3px 8px;border-radius:7px;text-transform:uppercase;flex:0 0 auto}
+.factrow .fk.pref{background:var(--violet-s);color:var(--violet)} .factrow .fk.commit{background:var(--amber-s);color:var(--amber)} .factrow .fk.fact{background:var(--blue-s);color:var(--blue)}
+.factrow .ft{flex:1;font-size:13px}
+.factrow .fx{font-family:var(--mono);font-size:11px;color:var(--faint);cursor:pointer;padding:4px 8px;border-radius:7px}
+.factrow .fx:hover{color:var(--red);background:var(--red-s)}
+.dayhist{display:flex;flex-direction:column;gap:2px}
+.dhrow{display:flex;align-items:center;padding:10px 0;border-bottom:1px solid var(--line2);cursor:pointer}
+.dhrow:last-child{border-bottom:none}
+.dhrow .dhd{flex:1;font-size:13px;font-weight:600}
+.dhk{font-family:var(--mono);font-size:10px;font-weight:600;padding:3px 9px;border-radius:20px}
+.dhk.full{background:var(--green-s);color:var(--green)} .dhk.sum{background:var(--line);color:var(--muted)}
 @media(max-width:760px){.app{grid-template-columns:1fr;grid-template-areas:"brand" "top" "main" "capture";grid-template-rows:56px 56px 1fr auto}.nav{display:none}}
 </style>
 </head>
@@ -325,7 +377,7 @@ button{font-family:inherit;cursor:pointer;border:none;background:none;color:inhe
 
   <nav class="nav">
     <div class="mode">Brief</div>
-    <button class="navitem on" data-v="brief"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 5h18M3 12h18M3 19h12"/></svg>Daily brief</button>
+    <button class="navitem on" data-v="brief"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 5h18M3 12h18M3 19h12"/></svg>Today</button>
     <div class="mode">System of Record</div>
     <button class="navitem" data-v="tasks"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M8 9h8M8 14h5"/></svg>Tasks ledger<span class="badge">9</span></button>
     <button class="navitem" data-v="invest"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19V9M10 19V5M16 19v-6M21 19H3"/></svg>Investments</button>
@@ -339,25 +391,26 @@ button{font-family:inherit;cursor:pointer;border:none;background:none;color:inhe
     <button class="navitem" data-v="people"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="8" r="3"/><path d="M3 20c0-3 3-5 6-5s6 2 6 5"/><circle cx="17" cy="9" r="2.4"/><path d="M16 15c3 0 5 2 5 5"/></svg>People</button>
     <div class="mode">Household</div>
     <button class="navitem" data-v="inbox"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7l9 6 9-6M4 5h16a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z"/></svg>Inbox<span class="badge rose" id="inboxbadge">1</span></button>
+    <div class="mode">Settings</div>
+    <button class="navitem" data-v="memory"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/></svg>Memory</button>
   </nav>
 
   <main class="main">
     <button class="backbar" id="backbar" onclick="go('brief')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M19 12H5M11 18l-6-6 6-6"/></svg>Dashboard</button>
     <!-- BRIEF -->
-    <section class="view on" id="v-brief"><div class="briefwrap">
+    <section class="view on" id="v-brief"><div class="consultwrap">
       <div class="greet"><h2 id="greet">Good morning, Anand</h2><span class="sub" id="greetdate"></span></div>
-      <div class="briefcard">
-        <div class="head"><span class="tag">0432 · BRIEF</span>
-          <div class="sw"><button class="on" id="bm-am" onclick="setBrief('am')">Morning</button><button id="bm-pm" onclick="setBrief('pm')">Evening</button></div></div>
-        <div class="prose" id="briefprose"></div>
+      <div class="thread" id="sthread"></div>
+      <div class="sseed" id="sseed">
+        <button onclick="sessionSeed('A 2 PM client call just came up')">A 2 PM call came up</button>
+        <button onclick="sessionSeed('Finished the column inventory')">Finished the inventory</button>
+        <button onclick="sessionSeed('Should I raise the staffing concern now or wait?')">Ask for advice</button>
       </div>
-      <div class="focusrow"><span class="lbl">Needs you today</span><div id="focuslist"></div></div>
-      <div class="glance">
-        <div class="gchip" onclick="go('tasks')"><div class="gi" style="background:var(--blue-s)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="2"><path d="M9 11l3 3L22 4M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></div><div><div class="gv">5</div><div class="gl">tasks today</div></div></div>
-        <div class="gchip" onclick="go('waiting')"><div class="gi" style="background:var(--amber-s)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--amber)" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></div><div><div class="gv">2</div><div class="gl">waiting on</div></div></div>
-        <div class="gchip" onclick="go('invest')"><div class="gi" style="background:var(--green-s)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2"><path d="M3 17l6-6 4 4 8-8"/></svg></div><div><div class="gv up">+1.2%</div><div class="gl">portfolio today</div></div></div>
+      <div class="composer">
+        <input id="sin" placeholder="Talk to your Chief of Staff — add something, give an update, or ask…" autocomplete="off">
+        <span class="hint mono">you talk · I file, schedule &amp; remind</span>
+        <button class="go" onclick="sessionSend()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
       </div>
-      <div class="talk"><button onclick="go('consult')">💬 Want to just talk something through?</button></div>
     </div></section>
 
     <!-- CONSULT -->
@@ -471,6 +524,39 @@ button{font-family:inherit;cursor:pointer;border:none;background:none;color:inhe
       <div class="vh"><span class="eyebrow">Household · FR37</span><h2>Inbox</h2><p>Tasks &amp; reminders sent to you by your household. Nothing lands in your calendar until you accept.</p></div>
       <div id="inboxlist"></div>
     </section>
+
+    <!-- MEMORY / SETTINGS -->
+    <section class="view" id="v-memory"><div class="memwrap">
+      <div class="vh"><span class="eyebrow">Settings · FR46–FR48</span><h2>Memory</h2><p>What I keep, for how long, and what I remember about how you work.</p></div>
+
+      <div class="memcard">
+        <div class="memh">🗂 Verbatim history</div>
+        <p class="memp">How long I keep the <b>word-for-word</b> transcript. Your <b>summaries and ledger are kept indefinitely</b> — only the raw transcript ages out. <b>Completed work is summarized and dropped early</b>, so finished tasks never cost tokens again.</p>
+        <div class="slidewrap">
+          <input type="range" min="7" max="14" value="7" id="retslider" oninput="retChange(this.value)">
+          <div class="slideval"><span id="retval">7</span> days <span class="slidehint mono">min 7 · max 14</span></div>
+        </div>
+        <div class="memwarn" id="retwarn" style="display:none">⚠ Shortening the window will purge transcript beyond the new limit on the next daily sweep. Summaries are kept.</div>
+      </div>
+
+      <div class="memcard">
+        <div class="memh">🧠 What I remember <span class="mono memcount">3 durable facts</span></div>
+        <p class="memp">Preferences and commitments I act on. Edit or remove anything — this is yours to correct.</p>
+        <div id="factlist"></div>
+      </div>
+
+      <div class="memcard">
+        <div class="memh">📆 History by day</div>
+        <p class="memp">Open any day to read it. Days past the verbatim window show the <b>summary only</b>.</p>
+        <div class="dayhist">
+          <div class="dhrow"><span class="dhd">Today</span><span class="dhk full">full transcript</span></div>
+          <div class="dhrow"><span class="dhd">Yesterday</span><span class="dhk full">full transcript</span></div>
+          <div class="dhrow"><span class="dhd">3 days ago</span><span class="dhk full">full transcript</span></div>
+          <div class="dhrow"><span class="dhd">9 days ago</span><span class="dhk sum">summary only</span></div>
+          <div class="dhrow"><span class="dhd">3 weeks ago</span><span class="dhk sum">summary only</span></div>
+        </div>
+      </div>
+    </div></section>
   </main>
 
   <div class="capture" id="capturebar"><div class="capwrap">
@@ -536,16 +622,17 @@ let briefs={
  pm:`Evening. You closed <b>4 tasks</b> and finished SpreadX COA mapping <b>two days early</b>.<br><br>
  For the <b>sweep</b>: confirm what you committed to in the 14:00 Client F sync, and tell me what you're waiting on. Tomorrow's 04:30 is set for <span class="lk" onclick="go('initiatives')">Domain 1</span>; readiness is <b>32%</b>. Portfolio closed <b>+1.2%</b>.`
 };
-function setBrief(m){document.getElementById('briefprose').innerHTML=briefs[m];
- document.getElementById('bm-am').classList.toggle('on',m==='am');document.getElementById('bm-pm').classList.toggle('on',m==='pm');
- document.getElementById('ctx').textContent=m==='am'?'◐ DAWN BRIEF':'◓ EVENING SWEEP';
- document.getElementById('greet').textContent=(m==='am'?'Good morning, ':'Good evening, ')+store[cu].name;}
+function setBrief(m){const gp=document.getElementById('briefprose');if(gp)gp.innerHTML=briefs[m];
+ const a=document.getElementById('bm-am');if(a)a.classList.toggle('on',m==='am');
+ const bb=document.getElementById('bm-pm');if(bb)bb.classList.toggle('on',m==='pm');
+ const c=document.getElementById('ctx');if(c)c.textContent=m==='am'?'◐ DAWN BRIEF':'◓ EVENING SWEEP';
+ const g=document.getElementById('greet');if(g)g.textContent=(m==='am'?'Good morning, ':'Good evening, ')+store[cu].name;}
 let focus=[
  {dot:"var(--red)",t:"Pay LIC premium",s:"Personal life · overdue 6 days",act:"Draft reminder"},
  {dot:"var(--blue)",t:"Client F — Appendix B column inventory",s:"Office · due Thursday",act:"Open"},
  {dot:"var(--amber)",t:"Model Gov. Dashboard has no next action",s:"Initiative stalled 11 days",act:"Set step"},
 ];
-function renderFocus(){document.getElementById('focuslist').innerHTML=focus.map(f=>`
+function renderFocus(){const _fl=document.getElementById('focuslist');if(!_fl)return;_fl.innerHTML=focus.map(f=>`
  <div class="focusitem"><span class="dot" style="background:${f.dot}"></span>
  <div class="txt"><div class="t1">${f.t}</div><div class="t2">${f.s}</div></div>
  <button class="miniact" onclick="focusAct('${f.act}')">${f.act}</button></div>`).join('');}
@@ -674,7 +761,7 @@ function go(v){document.querySelectorAll('.navitem').forEach(n=>n.classList.togg
  document.querySelectorAll('.view').forEach(s=>s.classList.toggle('on',s.id==='v-'+v));document.querySelector('.main').scrollTop=0;
  document.getElementById('capturebar').style.display=(v==='consult')?'none':'block';
  document.getElementById('backbar').style.display=(v==='brief')?'none':'inline-flex';
- if(v==='calendar')setCal(calMode);if(v==='consult')renderThread();if(v==='inbox')renderInbox();}
+ if(v==='calendar')setCal(calMode);if(v==='consult')renderThread();if(v==='inbox')renderInbox();if(v==='memory')renderFacts();}
 document.querySelectorAll('.navitem').forEach(n=>n.addEventListener('click',()=>go(n.dataset.v)));
 let tT;function toast(t,s){clearTimeout(tT);document.getElementById('toastt').textContent=t;document.getElementById('toasts').textContent=s||'';
  const el=document.getElementById('toast');el.classList.add('on');tT=setTimeout(()=>el.classList.remove('on'),2700);}
@@ -712,7 +799,7 @@ function switchUser(){
  document.getElementById('uav').textContent=store[cu].initial;
  document.getElementById('uname').textContent=store[cu].name;
  recipient='me'; updateRecipient();
- setBrief('am'); renderFocus(); renderTasks(); renderInvest(); renderInbox(); go('brief');
+ setBrief('am'); renderFocus(); renderTasks(); renderInvest(); renderInbox(); renderFacts(); sessionInit(); go('brief');
  toast("Now in "+store[cu].name+"'s Chief of Staff",'fully isolated · no data shared between you');
 }
 function renderInbox(){const inbox=store[cu].inbox, badge=document.getElementById('inboxbadge');
@@ -734,10 +821,114 @@ function updateRecipient(){const other=cu==='anand'?'priya':'anand';
  if(recipient==='other'){lbl.textContent=store[other].name; el.classList.add('other');}
  else{lbl.textContent='Me'; el.classList.remove('other');}}
 
+/* ---------- conversational session (Today) ---------- */
+const planByUser={
+ anand:[
+  {tm:'04:30',t:'Study — CCA-F Domain 1 module',d:'var(--violet)'},
+  {tm:'07:30',t:'Office — Client F column inventory (due Thu)',d:'var(--blue)'},
+  {tm:'11:00',t:'Client M — board deck prep',d:'var(--blue)'},
+  {tm:'18:00',t:'Gym / Walk',d:'var(--green)'},
+  {tm:'20:00',t:'Family · quiet hours',d:'var(--green)'},
+ ],
+ priya:[
+  {tm:'09:00',t:'Q3 campaign launch brief (due Wed)',d:'var(--blue)'},
+  {tm:'13:00',t:'Vendor contract review',d:'var(--blue)'},
+  {tm:'16:00',t:'Parent-teacher meeting — Aarav',d:'var(--green)'},
+  {tm:'18:30',t:'Yoga',d:'var(--green)'},
+ ],
+};
+let sthread=[];
+function sessionInit(){
+ const nm=store[cu].name;
+ sthread=[
+  {who:'cos',t:`Good morning, ${nm}. Here\u2019s the plan I\u2019ve put together for today \u2014 reminders are already set on each item.`},
+  {who:'cos',plan:'today',state:''},
+  {who:'cos',t:`What would you like to add, update, or talk through? Just tell me \u2014 I\u2019ll handle the filing, scheduling and reminders.`},
+ ];
+ renderSession();
+}
+function planCardHTML(state){
+ const items=planByUser[cu];
+ const tag=state==='revised'?'<span class="tagp">PROPOSED</span>':state==='agreed'?'<span class="tagp">AGREED</span>':'<span class="tagp" style="background:var(--blue);color:#fff">TODAY</span>';
+ let rows=items.map(p=>`<div class="pitem"><span class="pdot" style="background:${p.d}"></span><span class="ptm">${p.tm}</span><span class="ptt">${p.t}</span></div>`).join('');
+ if(state==='revised'){
+  rows=`<div class="pitem moved"><span class="ptm">14:00</span><span class="ptt">+ Client call (new) \u2014 fitted into the open slot</span></div>`+
+   `<div class="pitem moved"><span class="ptm">04:30 tmrw</span><span class="ptt">\u2192 Board deck prep moved here (today\u2019s slot taken)</span></div>`+rows;
+ }
+ const acts=state==='revised'?`<div class="planacts"><button class="pbtn agree" onclick="agreePlan()">Agree &amp; set reminders</button><button class="pbtn tweak" onclick="sessionSay('Actually keep deck prep today, move gym instead')">Tweak</button></div>`:'';
+ return `<div class="plancard ${state}"><div class="ph">📋 ${state==='revised'?'Revised plan':state==='agreed'?'Today\u2019s agreed plan':'Today\u2019s plan'} ${tag}</div>${rows}${acts}</div>`;
+}
+function renderSession(){
+ const el=document.getElementById('sthread');
+ el.innerHTML='<div class="daydiv"><span>Today</span></div>'+sthread.map(m=>{
+  let inner;
+  if(m.plan) inner=planCardHTML(m.state);
+  else if(m.act) inner=`<div class="actcard ${m.act}">${m.t}<span class="undo" onclick="toast('Undone','reverted')">undo</span></div>`;
+  else inner=`<div class="bubble">${m.t}</div>`;
+  return `<div class="msg ${m.who}"><div class="ava">${m.who==='cos'?'CS':store[cu].initial}</div>${inner}</div>`;
+ }).join('');
+ el.scrollTop=el.scrollHeight;
+}
+function sessionSay(v){document.getElementById('sin').value=v;sessionSend();}
+function sessionSeed(v){sessionSay(v);}
+function pushCos(o){sthread.push(Object.assign({who:'cos'},o));renderSession();}
+function sessionSend(){const v=document.getElementById('sin').value.trim();if(!v)return;
+ sthread.push({who:'me',t:v});document.getElementById('sin').value='';renderSession();
+ const l=v.toLowerCase();
+ setTimeout(()=>{
+  if(/(finish|done|completed|wrapped)/.test(l)){
+   pushCos({act:'done',t:'✓ Marked done: Client F column inventory · reminder cancelled'});
+   pushCos({t:'Nice \u2014 that\u2019s checked off, and it clears your Thursday deadline. Want me to pull the board-deck prep forward into the freed time?'});
+  } else if(/(call|meeting|appointment|2 ?pm|lunch|came up|unplanned)/.test(l)){
+   pushCos({t:'A 2 PM client call wasn\u2019t on today. I\u2019ve looked at your calendar and capacity \u2014 here\u2019s how I\u2019d re-fit the day. Your 04:30 study block stays untouched.'});
+   pushCos({plan:'today',state:'revised'});
+   pushCos({t:'If that works, I\u2019ll commit it and set reminders for the moved items. Or tell me what to change.'});
+  } else if(/(should i|what do you think|advice|suggest|recommend|\?)/.test(l)){
+   pushCos({t:'Worth taking seriously. Given you\u2019re leading the Client F work and the data-vault modelling is the riskiest piece, I\u2019d raise it early \u2014 but framed as a risk you\u2019re flagging, not a complaint. I can draft a short note to Heather, or we can think it through first. No task created unless you want one.'});
+  } else if(/(remind|every|daily|interval)/.test(l)){
+   pushCos({act:'rem',t:'⏰ Reminder set: '+v});
+   pushCos({t:'Done \u2014 I\u2019ll ping you on that schedule. Anything else?'});
+  } else {
+   const isCal=/(book|schedule|appt|at \d|tomorrow|pm|am|monday|tuesday|wednesday|thursday|friday)/.test(l);
+   pushCos({act:isCal?'cal':'add',t:(isCal?'📅 Added to calendar: ':'✓ Task created: ')+v+' · reminder set'});
+   pushCos({t:'Got it \u2014 tracked and a reminder is set. Want me to block time for it, or is this just to capture?'});
+  }
+ },480);
+}
+function agreePlan(){
+ const m=sthread.find(x=>x.plan&&x.state==='revised'); if(m)m.state='agreed';
+ renderSession();
+ pushCos({act:'cal',t:'📅 Plan committed · reminders set for the 2 PM call and the moved deck prep'});
+ pushCos({t:'All set \u2014 your calendar\u2019s updated and reminders are in. I\u2019ll keep an eye on it and flag if anything slips.'});
+ toast('Plan agreed','calendar updated · reminders set');
+}
+document.getElementById('sin').addEventListener('keydown',e=>{if(e.key==='Enter')sessionSend();});
+/* ---------- memory view ---------- */
+const factsByUser={
+ anand:[
+  {k:'pref',t:'Prefers deep-focus work before 6 AM (CCA-F study block)'},
+  {k:'commit',t:'Waiting on Owner A for the SpreadX pilot scope'},
+  {k:'fact',t:'Office items use coded client references (Client F, Client M)'},
+ ],
+ priya:[
+  {k:'pref',t:'Prefers no meetings before 9 AM'},
+  {k:'commit',t:'Parent-teacher meeting — Aarav, Friday 4 PM'},
+  {k:'fact',t:'Q3 campaign is the current priority initiative'},
+ ],
+};
+function renderFacts(){const el=document.getElementById('factlist');if(!el)return;
+ const f=factsByUser[cu]||[];
+ el.innerHTML=f.map((x,i)=>`<div class="factrow"><span class="fk ${x.k}">${x.k}</span><span class="ft">${x.t}</span><span class="fx" onclick="dropFact(${i})">remove</span></div>`).join('');
+ const c=document.querySelector('.memcount');if(c)c.textContent=f.length+' durable facts';}
+function dropFact(i){factsByUser[cu].splice(i,1);renderFacts();toast('Removed','I won\u2019t act on that anymore');}
+function retChange(v){document.getElementById('retval').textContent=v;
+ document.getElementById('retwarn').style.display=(+v<14)?'block':'none';}
+
+
 const now=new Date();
 document.getElementById('greetdate').textContent=now.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'});
 document.getElementById('todayfull').textContent=now.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'});
-setBrief('am');renderFocus();renderInvest();renderInit();renderTasks();renderInbox();updateRecipient();
+setBrief('am');renderFocus();renderInvest();renderInit();renderTasks();renderInbox();updateRecipient();sessionInit();renderFacts();
 </script>
 </body>
 </html>
