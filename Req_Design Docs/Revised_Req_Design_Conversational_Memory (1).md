@@ -31,7 +31,7 @@ This reuses the existing engine; it does not replace it. `classify.ts`, `capture
 | **FR44** | **Daily working session.** The COS opens the day proactively (greeting + today's plan) and sustains a mixed-initiative session (either party may drive) through to the evening sweep. | Must | Open → Work → Adapt → Advise → Close. Reuses FR25 brief as the "Open". |
 | **FR45** | **Collaborative plan negotiation.** Re-planning is *proposed → discussed → agreed → committed*; agreement auto-sets reminders for affected items. | Must | **Refines FR8** from automatic to negotiated. Only an *agreed* plan writes to the calendar. |
 | **FR46** | **Conversation memory (tiered).** Persist dialogue as: raw turns + rolling summaries + extracted durable facts + the structured ledger, and assemble a **bounded** per-turn context from them. | Must | See §4. Designed for flat per-turn cost as history grows. |
-| **FR47** | **Configurable verbatim retention (1–2 weeks).** Per-user `retention_days` (min 7, max 14, **default 7**). Only *verbatim turns* age out; **summaries + ledger persist indefinitely**; embeddings over raw turns expire with their turns. **Completion-triggered early pruning:** turns concerning only a completed task/initiative are summarized-and-dropped ahead of the window. Warn before shortening. | Must | Owner-set in Settings. Completion is a memory boundary — done work is never re-read. |
+| **FR47** | **Configurable retention — verbatim window + tiered lifecycle.** Verbatim turns: per-user `retention_days` (7–14, **default 7**) + completion-triggered early pruning. Beyond verbatim, a **tiered lifecycle** (§4.6.1): durable knowledge (facts/decisions/recurring) **never expires**; completed one-off tasks **archive ~12 mo**; day-summaries **roll off ~18 mo**. All windows owner-configurable, defaulted generous; the never-expire class is timer-immutable. Warn before shortening. | Must | Tiered retention is optional cost-hygiene, not required behaviour; protects NFR-5. |
 | **FR48** | **Inspectable / editable / deletable memory.** The owner can scroll history (with day dividers), view what the COS "remembers" (durable facts + current summary), correct a remembered fact, and delete a day or a fact. | Should | Memory the agent acts on must be transparent and correctable. |
 
 ### Refinements to existing FRs
@@ -140,11 +140,30 @@ Update the summary **incrementally** (anchor + new turns → updated summary) ra
 - **Setting:** per-user `retention_days` ∈ [7, 14], **default 7**.
 - **Ages out:** only **raw turns** (and their embeddings) older than the window.
 - **Completion-triggered early pruning (the cost win):** when a task/initiative is marked complete, turns that concern *only* that item become eligible for summarize-and-drop **ahead of** the time window. The outcome is already a ledger row, so the verbatim is discarded early. Done work is never re-read.
-- **Persists forever:** day-summaries (T2) and the ledger/facts (T3).
+- **Beyond verbatim (tiered — see §4.6.1):** day-summaries (T2) and the ledger/facts (T3) are **not** subject to the verbatim window. They follow a separate, generous **tiered retention lifecycle** with an explicit **never-expire** class for durable knowledge.
 - **Cron:** `cron/retention` (daily) deletes turns older than each user's window **plus** turns flagged by completion-pruning, and the embeddings derived from them; semantic recall past the cutoff runs over **summaries**, not raw turns.
 - **Changing it:** raising is safe (applies forward, can't resurrect purged turns); **lowering is destructive** → UI must warn + confirm before the next sweep purges newly out-of-window turns.
 - **Honest trade-off (documented):** with a 1–2 week verbatim window, the *exact wording* of an older conversation will not exist — only its summary and ledger outcome. This is the intended trade ("completed = done, don't refer again"); any decision needing verbatim permanence is captured into the ledger at the time it's made.
-- **Reconciliation with NFR-5 (Retention — "full historical retrieval required").** NFR-5 governs the **ledger** (tasks, initiatives, decisions, events, people, day-summaries), which persists **indefinitely** with full retrieval — unchanged. The 1–2 week window applies **only to verbatim conversation transcript**, which NFR-5 never required to be permanent. So there is no conflict: durable records are fully retrievable forever; only raw chat wording is time-boxed.
+- **Reconciliation with NFR-5 (Retention — "full historical retrieval required").** NFR-5 governs the **ledger** (tasks, initiatives, decisions, events, people, day-summaries), which persists with full retrieval — see the tiered lifecycle below. The 1–2 week window applies **only to verbatim conversation transcript**, which NFR-5 never required to be permanent. So there is no conflict: durable records remain retrievable; only raw chat wording is time-boxed.
+
+### 4.6.1 Tiered retention lifecycle (beyond verbatim)
+**Principle (read first):** the expensive resource is **per-turn tokens**, which the verbatim window and on-demand retrieval already bound. Day-summaries and ledger rows are **tiny and retrieved-on-demand**, so expiring them saves *storage* (a few MB/year for two users) — **not** the thing that scales the bill. Therefore this lifecycle is an **optional cost-hygiene knob, defaulted generous, not a required behaviour**, and it must **never** apply to the durable-knowledge class. Retention is **by type and state**, not a single timer:
+
+| Class | Examples | Default lifecycle | Setting |
+|-------|----------|-------------------|---------|
+| **Durable knowledge — NEVER expires** | preferences/facts, decisions, people-notes, **recurring** commitments (renewals, anniversaries, annual reviews) | **Kept indefinitely.** Off-limits to every timer. Protects NFR-5 + the "no task loss" success criterion and keeps the agent from getting dumber over time. | (none — hard rule) |
+| **Completed one-off tasks** | a finished task/event with no recurrence | **Archive at ~12 months** → move to cold storage (out of the active/searchable set) and drop their embeddings. | `completed_archive_months` (default 12) |
+| **Day-summaries (T2)** | the per-day narrative précis | **Roll off at ~18 months.** Episodic recall has a shelf life. | `summary_retention_months` (default 18) |
+| **Verbatim turns (T1)** | word-for-word transcript | **7–14 days** (default 7) + completion-pruning (§4.6). | `retention_days` (default 7) |
+
+**Rules & guardrails:**
+- **The never-expire class is immutable to timers.** No setting, cron, or "shorten window" action may delete a durable fact, decision, people-note, or recurring commitment. Deletion of these is only ever **explicit, user-initiated** (FR48).
+- **Archive ≠ delete.** Completed-task archival moves rows to cold storage (or a compacted form) and removes their embeddings to keep retrieval lean; the audit trail of *what happened* is preserved per NFR-5. (If the owner later wants hard deletion of archived items, that's a separate explicit purge.)
+- **All windows are owner-configurable** in the Memory view and **default generous**; they are framed as efficiency hygiene, not required behaviour. A blanket "expire the ledger" is explicitly **out of scope** — it would breach NFR-5 and degrade the agent.
+- **Embeddings follow their source row** (§4.7): when a row archives or a summary rolls off, its vector goes with it, so the searchable set stays small and cheap without touching durable knowledge.
+- **Cron:** `cron/retention` also runs the tiered sweep (archive completed tasks past `completed_archive_months`; drop summaries past `summary_retention_months`), skipping the never-expire class entirely.
+
+**Net effect:** the bulky, genuinely-stale items (old completed tasks, old narrative summaries) age out for tidiness; the small, high-value durable knowledge the agent reasons over stays permanent. Efficiency gained where it's free; capability never traded away.
 
 ### 4.7 Embeddings lifecycle & cost
 To control embedding spend and improve signal, **embed at the fact/summary level, not every raw turn**:
@@ -180,12 +199,15 @@ To control embedding spend and improve signal, **embed at the fact/summary level
 | `conversation_summaries` | id, owner_id, date, summary_text, open_threads_json, created_at | **T2, permanent** |
 | `memory_facts` | id, owner_id, kind (preference/commitment/fact), subject, value, source_turn_id, confidence, updated_at | **T3 durable; coded; ADD/UPDATE/DELETE** |
 | `plans` | id, owner_id, date, state (proposed/agreed/revised), items_json, change_log_json, agreed_at | FR45 agreement gate |
-| `users.retention_days` | int (7–14, default 7) | FR47 setting |
+| `users.retention_days` | int (7–14, default 7) | FR47 verbatim window |
+| `users.completed_archive_months` | int (default 12) | FR47 tiered — archive completed one-off tasks |
+| `users.summary_retention_months` | int (default 18) | FR47 tiered — roll off day-summaries |
+| `memory_facts.never_expire` | bool (true for facts/decisions/recurring) | hard guard against any timer |
 | embeddings | (existing) + `source` (turn/fact/summary), `expires_with_turn_id?` | FR47/4.7 lifecycle |
 
 ### 4.12 Memory requirements summary
 - **FR46** Tiered conversation memory with bounded per-turn context.
-- **FR47** Configurable verbatim retention (1–2 weeks, default 7 days); completion-triggered early pruning; summaries/ledger persist; embeddings expire with turns; warn on shorten.
+- **FR47** Configurable retention: verbatim 1–2 weeks (default 7 days) + completion-pruning; tiered lifecycle beyond verbatim — durable knowledge never expires, completed tasks archive ~12 mo, summaries roll off ~18 mo (§4.6.1); warn on shorten.
 - **FR48** Inspectable / editable / deletable memory (scrollback, "what I remember", correct/delete).
 - **NFR-10 (new)** Bounded memory cost: per-turn token cap, Haiku-first routing, conditional retrieval, deterministic offline floor, per-owner token observability.
 - **NFR-1/2 (extended)** Summaries/facts/embeddings stay coded; office memory never via third-party cloud memory services.
@@ -253,7 +275,7 @@ The mockup is delivered alongside this document. **Build the UI to match it.** I
 4. **Conversation-first UI (per §5, BINDING — match the mockup):** session thread home (greeting + plan card), merged composer, inline action cards (with undo). Reproduce `PersonalChiefOfStaff_Mockup_FINAL.html` faithfully.
 5. **Plan negotiation (FR45):** split `replan` into propose/commit; revised plan card with Agree/Tweak; auto-set reminders on commit.
 6. **Session (FR44):** wire `cron/brief` to open the day; `cron/sweep` to close + finalize day-summary.
-7. **Retention (FR47) + Memory view (FR48):** `cron/retention` (7–14 day window + completion-pruning); Settings slider (days); "what I remember" + edit/delete; scrollback with day dividers.
+7. **Retention (FR47) + Memory view (FR48):** `cron/retention` (7–14 day verbatim + completion-pruning + tiered archive/roll-off); Settings (verbatim days + tiered windows); "what I remember" + edit/delete; scrollback with day dividers.
 8. **Cost guardrails (NFR-10):** token cap, per-owner token logging, budget alert.
 
 ---
@@ -313,7 +335,7 @@ Every element of the conversational model from the two design docs is carried fo
 | NFR-1 Coded office references | v2.5 / built | **Extended** to summaries/facts/embeddings (§4.8) |
 | NFR-2 LLM/connector data boundary | v2.5 / built (with approved deviation) | **Honored**: office memory never via 3rd-party cloud memory services (§4.8, §4.9) |
 | NFR-3 Privacy & encryption | v2.5 | Unchanged; memory tables encrypted at rest like all data |
-| NFR-5 Retention (full historical retrieval) | v2.5 | **Reconciled** (§4.6): applies to the ledger (persists forever); the 1–2 wk window is verbatim chat only |
+| NFR-5 Retention (full historical retrieval) | v2.5 | **Reconciled** (§4.6 / §4.6.1): durable knowledge never expires; completed tasks archive (not delete) ~12 mo; summaries roll off ~18 mo; verbatim 1–2 wk. Audit/history preserved. |
 | NFR-7 Multi-tenant isolation | v2.5 / built | **Extended** to all memory tables (`owner_id` + FORCE RLS) |
 | NFR-10 Bounded memory cost | **new here** | §4.10 |
 | NFR-11 UI adherence | **new here** | §5 (binding) |
