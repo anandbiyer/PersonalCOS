@@ -2,19 +2,18 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { getCurrentOwnerId } from "@/lib/auth";
 import { currentConversation, openConversation } from "@/lib/db/repo/conversations";
-import { appendTurn, lastTurns } from "@/lib/db/repo/turns";
+import { appendTurn } from "@/lib/db/repo/turns";
+import { buildContext } from "@/lib/memory/context";
+import { extractFacts } from "@/lib/memory/facts";
 import { routeIntent } from "@/lib/orchestrator/router";
 import { act } from "@/lib/orchestrator/act";
 import { composeReply } from "@/lib/orchestrator/reply";
 
 /**
  * The single conversational entry point (FR43). One message →
- *   assemble context → route intent (Haiku) → act (existing engine) →
- *   reply (Haiku) → persist both turns → { reply, intent, actions, plan? }.
- *
- * Phase 2: context is a lightweight recent-turns window. Phase 3 replaces it
- * with the bounded `lib/memory/context.ts` assembler + write-before-compaction
- * fact extraction.
+ *   assemble bounded context (FR46) → route intent (Haiku) → act (existing
+ *   engine) → reply (Haiku) → persist both turns + write-before-compaction
+ *   fact extraction → { reply, intent, actions, plan? }.
  */
 const Body = z.object({
   message: z.string().min(1).max(4000),
@@ -37,11 +36,10 @@ export async function POST(req: NextRequest) {
   const ownerId = await getCurrentOwnerId();
   const conv = (await currentConversation(ownerId)) ?? (await openConversation(ownerId));
 
-  await appendTurn(ownerId, { conversationId: conv.id, role: "user", text: message });
+  const userTurn = await appendTurn(ownerId, { conversationId: conv.id, role: "user", text: message });
 
-  // Lightweight context for now (Phase 3 swaps in the bounded assembler).
-  const recent = await lastTurns(ownerId, 6);
-  const context = recent.map((t) => `${t.role}: ${t.text}`).join("\n");
+  // Bounded per-turn context (FR46/NFR-10) replaces the naive history replay.
+  const context = (await buildContext(ownerId, message)).text;
 
   const route = await routeIntent(message, context);
   const result = await act(ownerId, route.intent, message, tz);
@@ -54,6 +52,10 @@ export async function POST(req: NextRequest) {
     intent: route.intent,
     actionsJson: result.actions,
   });
+
+  // Write-before-compaction: extract durable facts from the user's message
+  // (best-effort; deterministic no-op offline).
+  await extractFacts(ownerId, message, userTurn.id);
 
   return NextResponse.json({
     reply,
