@@ -22,7 +22,9 @@ Use these anchors when a case involves time. Adjust to your own device/timezone 
 
 ## 0. Build assessment (executability review — 2026-07)
 
-> Reviewed each case against the current code on branch `feat/conversational-upgrade` (orchestrator, domain engines, repos, API routes, and UI screens). This section says **which cases can be run as written and which cannot**, and why. **No implementation was done** — this is an assessment only.
+> Reviewed each case against the current code on branch `feat/conversational-upgrade` (orchestrator, domain engines, repos, API routes, and UI screens). This section says **which cases can be run as written and which cannot**, and why.
+>
+> **Update — Increment A shipped (2026-07):** conversational **reminders (FR6, FR38)** are now wired to the orchestrator, and quiet-hours became a **21:00–06:00 night window with defer-to-06:00** (matching this pack's anchor). Those rows are updated below. Increment B (task **edit/delete**, FR11) is not yet done.
 
 ### The single most important lens: the conversational surface routes only 6 intents
 The home composer (`/api/orchestrator`) classifies every message into exactly **six intents** and nothing else:
@@ -41,8 +43,8 @@ The home composer (`/api/orchestrator`) classifies every message into exactly **
 - **`ANTHROPIC_API_KEY`** — real intent routing (else deterministic heuristic), consult/advice substance, **fact extraction**, and **day-summaries**. Under `AI_OFFLINE=1` these degrade to deterministic stubs (consult returns a canned line; extract/summary are no-ops).
 - **OpenAI** (STT + embeddings) → voice capture + vector retrieval · **Vision** → image capture · **Notion** → FR31 · **Tavily** → FR20 research · **Robinhood connector** → FR34 · **Clerk** → multi-user FR35/36/37/39 (dev falls back to a single dev tenant).
 
-### Time-anchor caveat (FR6 / FR38 / FR9)
-The implemented weekly template is **Study 04:30–05:30 · Office 07:30–17:00 · Gym 18:00–20:00 · Family 20:00–21:00 (quiet) · Reading 21:15–22:00 (quiet)**. There is **no blanket 21:00→06:00 quiet window** — quiet-hours are specific template blocks. Recalibrate the exact-time expectations in FR6/FR38 accordingly.
+### Time-anchor caveat (FR9)
+The implemented weekly template is **Study 04:30–05:30 · Office 07:30–17:00 · Gym 18:00–20:00 · Family 20:00–21:00 · Reading 21:15–22:00**. Quiet-hours is now a single overnight window **21:00→06:00** (Increment A), so FR6/FR38 timing matches this pack. Note quiet-hours is evaluated in **server-local time**, not per-user tz — verify on the deployed timezone.
 
 ### Legend for the status table
 ✅ **Executable** as written · 🟡 **Partial** (works with caveats) · 🖥️ **Screen/API-only** (built, but *not* via the chat input specified) · ❌ **Blocked** (not available for this scenario as written) · ⬜ **Deferred**
@@ -65,7 +67,7 @@ The implemented weekly template is **Study 04:30–05:30 · Office 07:30–17:00
 | **FR3** Initiatives | 🖥️ | **Initiatives screen / API**; chat files a task. Not via chat. |
 | **FR4** Calendar plan | 🟡 | Plan is shown on the **home plan card + Calendar screen**. Chat "*what's my plan*" → counts. "*dentist at 11*" adds a **dated task**, not a template-overriding schedule-exception. |
 | **FR5** Capacity | ❌ | `detectOverload` exists but is **not wired to chat** and has no direct query screen. Not executable as written. |
-| **FR6** Reminders (quiet-hours) | ❌ | Chat "*remind me…*" makes a **dated task, no reminder rule, no quiet-hours deferral**. Rules exist only via **`/api/reminders`** + `fire-reminders` cron. Quiet-hours model also differs from the 21:00→06:00 assumption. |
+| **FR6** Reminders (quiet-hours) | ✅ | *(Increment A)* "*remind me to call the plumber at 9pm*" → files the task **and** a one-off reminder rule; the fire time is **deferred to 06:00** because 21:00 is inside the new 21:00–06:00 quiet window. Fired by `cron/fire-reminders`. |
 | **FR7** Missed-task | 🟡 | "*what did I miss*" → overdue **count** (not "~15h overdue"); the brief surfaces overdue items. |
 | **FR8 / FR45** Negotiated replan | 🟡 | A revised plan is proposed **only on a real same-day clash** (conflict-gated). With an empty 2 PM slot it files silently. The replan moves backlog to **future days**, not intraday. "*agree*" commits + sets reminders. |
 | **FR9** Study plan | 🖥️ | Via **`/api/initiatives/[id]/study-plan`** (needs an initiative); chat files a task. |
@@ -75,7 +77,7 @@ The implemented weekly template is **Study 04:30–05:30 · Office 07:30–17:00
 | **FR24** Slippage | 🖥️ | **Reports** at-risk/slippage (T2) ✅; chat "*what's at risk*" (T1) not wired. |
 | **FR25** Daily briefing | 🟡 | AM plan is **proactively** shown on session open ✅ (FR44). PM sweep is **cron-driven** (`cron/sweep`), not chat-triggered. |
 | **FR28** Calendar views | ✅ | Hour-grid **Day** + **Week**, switchable, device-tz. |
-| **FR38** Interval reminders | ❌ | Rules via **`/api/reminders`** only (`computeNextFire` supports interval/daily); chat files a task. |
+| **FR38** Interval reminders | ✅ | *(Increment A)* "*stretch every 2 hours*" → `every_n_hours` rule; "*every morning at 7*" → `daily` rule. Recurring fires inside quiet hours are suppressed by dispatch. |
 | **FR40** NL due-date | ✅ | Extracted at capture (next-occurrence, 9 PM default). |
 | **FR41** 9 PM default | ✅ | Date-only → 21:00 timed "due by". |
 | **FR42** Device-tz | ✅ | Display is device-local (client-rendered). Reminder **timing** 🟡. |
@@ -110,15 +112,17 @@ The implemented weekly template is **Study 04:30–05:30 · Office 07:30–17:00
 | **NFR-11** UI adherence | ✅ | Conversation-first home, plan card, action cards, one composer; tokens/IA/themes. |
 | **FR32** Browser action | ⬜ | Deferred. No explicit graceful-decline — the input is mis-handled as a task/consult rather than clearly declined. |
 
-### Tally
-- **✅ Executable as written (chat or UI/Verify):** FR1, FR2, FR14 (T1), FR29, FR30, FR31, FR28, FR40, FR41, FR42 (display), FR26, FR33, FR34, FR35, FR36, FR37, FR39, FR43, FR44, FR46, FR47, NFR-2, NFR-3, NFR-5, NFR-6, NFR-7, NFR-8, NFR-9, NFR-10, NFR-11.
-- **🟡 Partial / caveated:** FR4, FR7, FR8/FR45, FR11, FR20, FR21, FR23, FR24 (T2), FR25, FR48, NFR-4.
-- **🖥️ Built but only via screen/API (not the chat input written):** FR3, FR9, FR10, FR13, FR15, FR16, FR17, FR19.
-- **❌ Blocked as written (needs new wiring):** FR5, FR6, FR12, FR18, FR22, FR27, FR38, NFR-1.
-- **⬜ Deferred:** FR32.
+### Tally *(after Increment A)*
+- **✅ Executable as written (chat or UI/Verify) — 32:** FR1, FR2, **FR6**, FR14 (T1), FR29, FR30, FR31, FR28, **FR38**, FR40, FR41, FR42 (display), FR26, FR33, FR34, FR35, FR36, FR37, FR39, FR43, FR44, FR46, FR47, NFR-2, NFR-3, NFR-5, NFR-6, NFR-7, NFR-8, NFR-9, NFR-10, NFR-11.
+- **🟡 Partial / caveated — 11:** FR4, FR7, FR8/FR45, FR11, FR20, FR21, FR23, FR24 (T2), FR25, FR48, NFR-4.
+- **🖥️ Built but only via screen/API (not the chat input written) — 8:** FR3, FR9, FR10, FR13, FR15, FR16, FR17, FR19.
+- **❌ Blocked as written (needs new wiring) — 6:** FR5, FR12, FR18, FR22, FR27, NFR-1.
+- **⬜ Deferred — 1:** FR32.
+
+*Movement from Increment A: FR6 & FR38 ❌→✅ (Blocked-as-written 8→6, Executable 30→32). Increment B (FR11 edit/delete) would move FR11 🟡→✅ next.*
 
 ### If the goal is "run the whole pack conversationally"
-The highest-leverage gaps are all about **wiring existing engines to the orchestrator**: add intents/handlers for **reminder rules** (FR6/FR38), **decisions** (FR12), **initiatives + advisory/operationalise** (FR3/FR15/FR16), **people/waiting-on** (FR19/FR23), **reports/at-risk** (FR10/FR24), **search** (FR13), **multi-task note extraction** (FR18), and **edit/delete** of tasks (FR11). NFR-1 (auto-coding office names) is the one true *new-capability* gap.
+The highest-leverage gaps are all about **wiring existing engines to the orchestrator**: ~~reminder rules (FR6/FR38)~~ ✅ *done (Increment A)*; **edit/delete** of tasks (FR11) *← Increment B, next*; **decisions** (FR12), **initiatives + advisory/operationalise** (FR3/FR15/FR16), **people/waiting-on** (FR19/FR23), **reports/at-risk** (FR10/FR24), **search** (FR13), and **multi-task note extraction** (FR18). NFR-1 (auto-coding office names) is the one true *new-capability* gap.
 
 ---
 
