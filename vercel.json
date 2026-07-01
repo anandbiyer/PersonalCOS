@@ -7,6 +7,6 @@
     { "path": "/api/cron/initiative-review", "schedule": "0 9 * * 1" },
     { "path": "/api/cron/revalidate", "schedule": "0 6 * * 1" },
     { "path": "/api/cron/fire-reminders", "schedule": "* * * * *" },
-    { "path": "/api/cron/retention", "schedule": "30 3 * * *" }
+    { "path": "/api/cron/retention", "schedule": "30 7 * * *" }
   ]
 }
