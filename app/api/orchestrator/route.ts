@@ -4,6 +4,7 @@ import { getCurrentOwnerId } from "@/lib/auth";
 import { currentConversation, openConversation } from "@/lib/db/repo/conversations";
 import { appendTurn } from "@/lib/db/repo/turns";
 import { buildContext } from "@/lib/memory/context";
+import { logTurnCost } from "@/lib/memory/budget";
 import { extractFacts } from "@/lib/memory/facts";
 import { routeIntent } from "@/lib/orchestrator/router";
 import { act } from "@/lib/orchestrator/act";
@@ -52,6 +53,10 @@ export async function POST(req: NextRequest) {
     intent: route.intent,
     actionsJson: result.actions,
   });
+
+  // Per-owner cost accounting + budget-exceed alert (NFR-10). Best-effort;
+  // deterministic and offline-safe (character-based estimate, no AI call).
+  await logTurnCost(ownerId, { intent: route.intent, context, message, reply });
 
   // Write-before-compaction: extract durable facts from the user's message
   // (best-effort; deterministic no-op offline).

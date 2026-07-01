@@ -5,6 +5,7 @@ import { listFacts } from "@/lib/db/repo/facts";
 import { overdueTasks, dueToday, categorizeWaiting } from "@/lib/planner/reminders";
 import { embeddingsEnabled, embed } from "@/lib/ai/embeddings";
 import { searchMemory } from "@/lib/db/repo/embeddings";
+import { estTokens } from "@/lib/memory/budget";
 
 /**
  * Per-turn context assembler (FR46 §4.4, NFR-10). Bounded budget — the single
@@ -18,7 +19,6 @@ import { searchMemory } from "@/lib/db/repo/embeddings";
  * embeddings), giving a deterministic, hermetic, cost-floored path.
  */
 const CAP = Number(process.env.MEMORY_CONTEXT_TOKEN_CAP ?? 3000);
-const estTokens = (s: string) => Math.ceil(s.length / 4);
 
 export function messageReachesBack(message: string): boolean {
   return /\b(earlier|before|last (week|month|time|year)|previously|you (said|mentioned|told)|we (discussed|decided|talked|agreed)|remember|recall|what was|going back|that (thing|note|idea) (we|i))\b/i.test(
