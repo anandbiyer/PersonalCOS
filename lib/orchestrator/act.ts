@@ -1,12 +1,14 @@
 import { ingestText } from "@/lib/capture/ingest";
-import { listTasks, setTaskStatus, updateTask } from "@/lib/db/repo/tasks";
+import { listTasks, setTaskStatus, updateTask, createTask } from "@/lib/db/repo/tasks";
 import { createReminderRule } from "@/lib/db/repo/reminders";
+import { createException } from "@/lib/db/repo/exceptions";
 import { parseReminder } from "@/lib/reminders/parse";
 import { extractDueDate } from "@/lib/capture/extract-date";
 import { overdueTasks, dueToday, categorizeWaiting, isOpen } from "@/lib/planner/reminders";
 import { deferPastQuietHours } from "@/lib/planner/quiet-hours";
 import { hasClockTime, sameDay, toDate } from "@/lib/planner/dates";
 import { DEFAULT_TASK_DURATION_MIN } from "@/lib/planner/calendar";
+import { matchTemplateBlock, blockDurationMin } from "@/lib/planner/template";
 import { consultReply } from "@/lib/consult/consult";
 import { proposePlan, type ProposedPlan } from "./plan";
 import type { Intent } from "./router";
@@ -264,6 +266,13 @@ export async function act(
       // (undo) and audited — never a silent hard-delete via chat (FR11/FR14).
       const m = await matchOpenTask(ownerId, message);
       if (!m) {
+        const block = matchTemplateBlock(message); // FR4: routine blocks aren't tasks
+        if (block) {
+          return {
+            actions: [{ type: "noop", label: "" }],
+            content: `"${block.name}" is a fixed routine block, not a task, so there's nothing to remove. To free up that slot for a day, tell me what to put there instead.`,
+          };
+        }
         return {
           actions: [{ type: "noop", label: "" }],
           content: "Which task should I remove? Tell me its name.",
@@ -281,6 +290,43 @@ export async function act(
     case "edit": {
       const m = await matchOpenTask(ownerId, message);
       if (!m) {
+        // FR4: the target may be a routine template block (Gym / Walk, Study…),
+        // which has no ledger row. Reschedule it for a day via a schedule
+        // exception (vacates the slot) + a timed item at the new time.
+        const block = matchTemplateBlock(message);
+        if (block) {
+          const when = extractDueDate(message, new Date(), tz);
+          if (when && hasClockTime(when)) {
+            const dur = blockDurationMin(block);
+            await createException(ownerId, {
+              date: when,
+              overriddenBlock: block.name,
+              replacement: `${block.name} — moved to ${fmtWhen(when, tz)}`,
+              source: "chat-reschedule",
+            });
+            const moved = await createTask(ownerId, {
+              name: block.name,
+              portfolio: block.portfolio,
+              source: "text",
+              dueDate: when,
+              effortMin: dur,
+            });
+            return {
+              actions: [
+                {
+                  type: "calendar",
+                  label: `📅 Moved ${block.name} to ${fmtWhen(when, tz)}`,
+                  undo: { kind: "delete_task", id: moved.id },
+                },
+              ],
+              content: `Moved ${block.name} to ${fmtWhen(when, tz)} for that day.`,
+            };
+          }
+          return {
+            actions: [{ type: "noop", label: "" }],
+            content: `"${block.name}" is a fixed routine block, not a task — tell me the new time (e.g. "move ${block.name} to 7pm") and I'll shift it for that day.`,
+          };
+        }
         return {
           actions: [{ type: "noop", label: "" }],
           content: "Which task did you want to change? Tell me its name.",

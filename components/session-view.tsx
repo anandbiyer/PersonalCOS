@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { projectDay } from "@/lib/planner/calendar";
 import type { CalItem, PlanTask, PlanEvent, PlanException } from "@/lib/planner/types";
@@ -60,6 +60,17 @@ const fmtClock = (hhmm?: string): string => {
 const timeRange = (i: { start?: string; end?: string }): string =>
   i.start ? (i.end ? `${fmtClock(i.start)} to ${fmtClock(i.end)}` : fmtClock(i.start)) : "";
 
+/** Avatar initials from a display name ("Anand Iyer" → "AI"); default "AI". */
+const initialsOf = (name: string): string => {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "AI";
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+};
+
+/** Actions whose completion changes what's on today's plan → re-show the plan. */
+const PLAN_ACTIONS = new Set(["task_created", "calendar", "edit", "deleted", "done"]);
+
 /** Revised-plan card (FR45): the proposed moves, with Agree / Tweak. */
 function PlanCard({ plan, onAgree, onTweak, busy }: { plan: ProposedPlan; onAgree: () => void; onTweak: () => void; busy: boolean }) {
   const fmtDay = (iso: string) => new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" });
@@ -105,6 +116,7 @@ export function SessionView({
   const router = useRouter();
   const [now, setNow] = useState<Date | null>(null);
   const [sending, setSending] = useState(false);
+  const bottomRef = useRef<HTMLDivElement>(null);
   useEffect(() => setNow(new Date()), []);
 
   const plan: CalItem[] = useMemo(
@@ -112,11 +124,28 @@ export function SessionView({
     [now, tasks, events, exceptions],
   );
 
+  // Did the latest COS turn change today's plan? If so, we re-show the plan card
+  // inline (republish) below the exchange.
+  const planAffected = useMemo(() => {
+    for (let i = turns.length - 1; i >= 0; i--) {
+      if (turns[i].role === "cos") {
+        return (turns[i].actionsJson as ActionCard[]).some((a) => PLAN_ACTIONS.has(a.type));
+      }
+    }
+    return false;
+  }, [turns]);
+
+  // Auto-scroll to the newest message after a reply (and once the greeting/plan
+  // have rendered). Requirement: the window follows the conversation.
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+  }, [turns.length, planAffected, now]);
+
   const greeting = now
     ? `Good ${now.getHours() < 12 ? "morning" : now.getHours() < 17 ? "afternoon" : "evening"}${name ? `, ${name}` : ""}`
     : "…";
   const dateLabel = now ? now.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" }) : "";
-  const initial = (name || "You").trim().charAt(0).toUpperCase();
+  const initial = initialsOf(name);
 
   async function send(message: string) {
     if (sending) return;
@@ -269,6 +298,28 @@ export function SessionView({
             </div>
           ),
         )}
+
+        {/* Republish today's plan inline after a plan-changing action (FR44). */}
+        {now && planAffected && plan.length > 0 && (
+          <div className="msg cos">
+            <div className="ava">CS</div>
+            <div className="plancard">
+              <div className="ph">
+                📋 Updated plan
+                <span className="tagp" style={{ background: "var(--office)", color: "#fff" }}>TODAY</span>
+              </div>
+              {plan.map((i) => (
+                <div className="pitem" key={`u-${i.key}`}>
+                  <span className="pdot" style={{ background: dotColor(i.portfolio) }} />
+                  <span className="ptm">{timeRange(i)}</span>
+                  <span className="ptt">{i.title}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div ref={bottomRef} />
       </div>
 
       <div className="sseed">
