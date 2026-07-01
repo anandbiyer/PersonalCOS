@@ -854,6 +854,8 @@ a {
 .actcard.done { background: var(--life-s); color: var(--life); }
 .actcard.cal { background: var(--dev-s); color: var(--dev); }
 .actcard.rem { background: var(--amber-s); color: var(--amber); }
+.actcard.edit { background: var(--office-s); color: var(--office); }
+.actcard.del { background: var(--red-s); color: var(--red); }
 .actcard .undo { font-family: var(--mono); font-size: 10px; font-weight: 600; opacity: 0.7; margin-left: 4px; border-left: 1px solid currentColor; padding-left: 8px; cursor: pointer; }
 
 /* memory / settings (FR47/FR48) */

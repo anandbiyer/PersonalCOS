@@ -38,6 +38,8 @@ const ACT_CLASS: Record<string, string> = {
   done: "done",
   calendar: "cal",
   reminder: "rem",
+  edit: "edit",
+  deleted: "del",
 };
 
 const dotColor = (p?: string) =>
@@ -141,6 +143,19 @@ export function SessionView({
       });
     } else if (a.undo.kind === "delete_task") {
       await fetch(`/api/tasks/${a.undo.id}`, { method: "DELETE" });
+    } else if (a.undo.kind === "restore_task") {
+      // Restore the prior field values after an edit (dueDate / name).
+      let body: Record<string, unknown> = {};
+      try {
+        body = a.undo.prev ? JSON.parse(a.undo.prev) : {};
+      } catch {
+        body = {};
+      }
+      await fetch(`/api/tasks/${a.undo.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
     }
     router.refresh();
   }

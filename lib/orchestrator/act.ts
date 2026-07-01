@@ -1,7 +1,8 @@
 import { ingestText } from "@/lib/capture/ingest";
-import { listTasks, setTaskStatus } from "@/lib/db/repo/tasks";
+import { listTasks, setTaskStatus, updateTask } from "@/lib/db/repo/tasks";
 import { createReminderRule } from "@/lib/db/repo/reminders";
 import { parseReminder } from "@/lib/reminders/parse";
+import { extractDueDate } from "@/lib/capture/extract-date";
 import { overdueTasks, dueToday, categorizeWaiting, isOpen } from "@/lib/planner/reminders";
 import { deferPastQuietHours } from "@/lib/planner/quiet-hours";
 import { hasClockTime, sameDay, toDate } from "@/lib/planner/dates";
@@ -35,7 +36,18 @@ function fmtWhen(d: Date, tz?: string): string {
  * capture is filed directly.
  */
 export interface OrchestratorAction {
-  type: "task_created" | "done" | "calendar" | "reminder" | "status" | "advice" | "handoff" | "noop" | "plan";
+  type:
+    | "task_created"
+    | "done"
+    | "calendar"
+    | "reminder"
+    | "status"
+    | "advice"
+    | "handoff"
+    | "noop"
+    | "plan"
+    | "edit"
+    | "deleted";
   label: string;
   undo?: { kind: string; id?: string; prev?: string };
   plan?: ProposedPlan; // for type === "plan" — rendered as the revised plan card
@@ -53,6 +65,12 @@ const STOP = new Set([
   "the", "a", "an", "my", "your", "to", "for", "is", "are", "i", "just", "with",
   "and", "of", "on", "that", "this", "it", "please", "can", "you", "finished",
   "done", "completed", "wrapped", "paid", "mark", "as", "up", "off", "task", "item",
+  // edit/delete verbs + date words — so they don't inflate the fuzzy match on
+  // the distinctive noun ("dry cleaning", "badminton").
+  "change", "update", "delete", "remove", "reschedule", "move", "rename", "push",
+  "cancel", "drop", "scrap", "edit", "set", "due", "date", "reschedule",
+  "today", "tonight", "tomorrow", "next", "week", "month", "day",
+  "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday",
 ]);
 
 function tokens(s: string): string[] {
@@ -61,6 +79,27 @@ function tokens(s: string): string[] {
     .replace(/[^a-z0-9\s]/g, " ")
     .split(/\s+/)
     .filter((w) => w.length >= 3 && !STOP.has(w));
+}
+
+/** Best-matching OPEN task for a message, by keyword overlap on the task name.
+ *  Shared by completion / edit / delete. Returns null below the match floor. */
+async function matchOpenTask(
+  ownerId: string,
+  message: string,
+): Promise<{ task: Awaited<ReturnType<typeof listTasks>>[number]; score: number } | null> {
+  const open = (await listTasks(ownerId)).filter((t) => isOpen(t));
+  const words = tokens(message);
+  let best: (typeof open)[number] | null = null;
+  let bestScore = 0;
+  for (const t of open) {
+    const name = t.name.toLowerCase();
+    const score = words.filter((w) => name.includes(w)).length;
+    if (score > bestScore) {
+      bestScore = score;
+      best = t;
+    }
+  }
+  return best && bestScore >= 1 ? { task: best, score: bestScore } : null;
 }
 
 interface TimedRow {
@@ -204,30 +243,72 @@ export async function act(
     }
 
     case "completion": {
-      const all = await listTasks(ownerId);
-      const open = all.filter((t) => isOpen(t));
-      const words = tokens(message);
-      let best: (typeof open)[number] | null = null;
-      let bestScore = 0;
-      for (const t of open) {
-        const name = t.name.toLowerCase();
-        const score = words.filter((w) => name.includes(w)).length;
-        if (score > bestScore) {
-          bestScore = score;
-          best = t;
-        }
-      }
-      if (!best || bestScore < 1) {
+      const m = await matchOpenTask(ownerId, message);
+      if (!m) {
         return {
           actions: [{ type: "noop", label: "" }],
           content: "I couldn't tell which task you finished — which one was it?",
         };
       }
-      const prev = best.status;
-      await setTaskStatus(ownerId, best.id, "completed");
+      const prev = m.task.status;
+      await setTaskStatus(ownerId, m.task.id, "completed");
       return {
         actions: [
-          { type: "done", label: `✓ Done: ${best.name}`, undo: { kind: "revert_status", id: best.id, prev } },
+          { type: "done", label: `✓ Done: ${m.task.name}`, undo: { kind: "revert_status", id: m.task.id, prev } },
+        ],
+      };
+    }
+
+    case "delete": {
+      // Soft-delete = cancel: the task drops off open lists but is recoverable
+      // (undo) and audited — never a silent hard-delete via chat (FR11/FR14).
+      const m = await matchOpenTask(ownerId, message);
+      if (!m) {
+        return {
+          actions: [{ type: "noop", label: "" }],
+          content: "Which task should I remove? Tell me its name.",
+        };
+      }
+      const prev = m.task.status;
+      await setTaskStatus(ownerId, m.task.id, "cancelled");
+      return {
+        actions: [
+          { type: "deleted", label: `🗑 Removed: ${m.task.name}`, undo: { kind: "revert_status", id: m.task.id, prev } },
+        ],
+      };
+    }
+
+    case "edit": {
+      const m = await matchOpenTask(ownerId, message);
+      if (!m) {
+        return {
+          actions: [{ type: "noop", label: "" }],
+          content: "Which task did you want to change? Tell me its name.",
+        };
+      }
+      const t = m.task;
+      const newDue = extractDueDate(message, new Date(), tz);
+      if (!newDue) {
+        return {
+          actions: [{ type: "noop", label: "" }],
+          content: `I found "${t.name}" but couldn't tell what to change — try "change ${t.name} to Friday 3pm".`,
+        };
+      }
+      const updated = await updateTask(ownerId, t.id, { dueDate: newDue });
+      if (!updated) {
+        return { actions: [{ type: "noop", label: "" }], content: "That task no longer exists." };
+      }
+      return {
+        actions: [
+          {
+            type: "edit",
+            label: `✏️ Updated: ${updated.name} → due ${fmtWhen(newDue, tz)}`,
+            undo: {
+              kind: "restore_task",
+              id: t.id,
+              prev: JSON.stringify({ dueDate: t.dueDate ?? null, name: t.name }),
+            },
+          },
         ],
       };
     }

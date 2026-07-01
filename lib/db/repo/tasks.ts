@@ -49,6 +49,45 @@ export async function createTask(ownerId: string, input: CreateTaskInput) {
   });
 }
 
+export interface UpdateTaskInput {
+  name?: string;
+  dueDate?: Date | null;
+  priority?: "low" | "normal" | "high" | "urgent";
+  portfolio?: Portfolio;
+  effortMin?: number | null;
+}
+
+/**
+ * Edit an existing task's fields (FR11), recording an audit row with the full
+ * before/after (satisfies FR14 for field changes). Setting a due date on an
+ * undated task promotes it onto the calendar (created → planned). Returns null
+ * if the task doesn't exist for this owner.
+ */
+export async function updateTask(ownerId: string, id: string, patch: UpdateTaskInput) {
+  return withOwner(ownerId, async (tx) => {
+    const [prev] = await tx.select().from(tasks).where(eq(tasks.id, id));
+    if (!prev) return null;
+    const set: Record<string, unknown> = {};
+    if (patch.name !== undefined) set.name = patch.name;
+    if (patch.dueDate !== undefined) set.dueDate = patch.dueDate;
+    if (patch.priority !== undefined) set.priority = patch.priority;
+    if (patch.portfolio !== undefined) set.portfolio = patch.portfolio;
+    if (patch.effortMin !== undefined) set.effortMin = patch.effortMin;
+    // A newly-dated task that was only "created" becomes calendar-planned.
+    if (patch.dueDate && prev.status === "created") set.status = "planned";
+    if (Object.keys(set).length === 0) return prev;
+
+    const [row] = await tx.update(tasks).set(set).where(eq(tasks.id, id)).returning();
+    await tx.insert(audit).values({
+      ownerId,
+      changeType: "task.updated",
+      prevValue: prev,
+      newValue: row,
+    });
+    return row;
+  });
+}
+
 /** Hard-delete a task — used for in-thread undo of a just-created task (FR43). */
 export async function deleteTask(ownerId: string, id: string) {
   return withOwner(ownerId, async (tx) => {
