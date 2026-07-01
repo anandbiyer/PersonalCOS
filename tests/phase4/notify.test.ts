@@ -4,7 +4,7 @@ import { client } from "@/lib/db";
 import { dispatch } from "@/lib/notify";
 
 /** Phase 4 — notification dispatch + quiet-hours governance (FR6, FR38). */
-const quiet = new Date(2026, 5, 15, 20, 30); // Family quiet hour
+const quiet = new Date(2026, 5, 15, 22, 30); // inside the 21:00–06:00 quiet window
 const daytime = new Date(2026, 5, 15, 10, 0);
 
 describe("[P4] notification dispatch", () => {

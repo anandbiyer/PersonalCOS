@@ -14,7 +14,8 @@ export type Intent =
   | "completion"
   | "status"
   | "question"
-  | "handoff";
+  | "handoff"
+  | "reminder";
 
 export interface RouteResult {
   intent: Intent;
@@ -22,6 +23,7 @@ export interface RouteResult {
   via: "llm" | "heuristic";
 }
 
+const REMINDER = /\b(remind me|set (a|an)? ?reminder|reminder to)\b|\bevery\s+\d+\s*(hours?|hrs?|minutes?|mins?)\b|\bevery\s+(morning|day|afternoon|evening|night)\b/i;
 const HANDOFF = /\b(hand[\s-]?off|delegate)\b|\b(send|forward|assign|give|pass)\b[^?]*\bto\s+[a-z]+/i;
 const COMPLETION = /\b(finished|done with|completed|wrapped\s?up|paid|submitted|closed (it|out)|mark(ed)?\s.+\bdone|did the|took care of|sorted out)\b/i;
 const QUESTION = /\b(should i|what do you think|your (opinion|advice|take)|any (advice|thoughts)|recommend|suggest|thoughts on|help me think|torn between|not sure (if|whether)|wondering (if|whether)|do you think)\b/i;
@@ -31,7 +33,10 @@ const CALENDAR = /\b(\d{1,2}(:\d{2})?\s?(am|pm)|at \d{1,2}\b|tomorrow|today|toni
 export function heuristicRoute(message: string): RouteResult {
   const m = message.trim();
   let intent: Intent;
-  if (HANDOFF.test(m)) intent = "handoff";
+  // "remind me…" is explicit and wins over the calendar/handoff cues it may
+  // also contain (a time, or a "…to <name>").
+  if (REMINDER.test(m)) intent = "reminder";
+  else if (HANDOFF.test(m)) intent = "handoff";
   else if (COMPLETION.test(m)) intent = "completion";
   else if (QUESTION.test(m) || (/\?\s*$/.test(m) && !STATUS.test(m))) intent = "question";
   else if (STATUS.test(m)) intent = "status";
@@ -48,10 +53,13 @@ export async function routeIntent(message: string, context = ""): Promise<RouteR
       max_tokens: 64,
       system:
         "You are the intent router for a conversational chief of staff. Classify the manager's " +
-        "message into exactly one intent: calendar (scheduling / an event / a time), task (capture a " +
-        "to-do), completion (something got done), status (asking what's on their plate), question " +
-        "(seeking advice or thinking out loud), handoff (send a task to a household member). Use the " +
-        'context only to disambiguate. Respond with ONLY JSON: {"intent":"...","confidence":0-1}.',
+        "message into exactly one intent: reminder (asking to be reminded / nudged at a time or on a " +
+        "recurring schedule — 'remind me…', 'every 2 hours', 'every morning at 7'), calendar " +
+        "(scheduling / an event / a time), task (capture a to-do), completion (something got done), " +
+        "status (asking what's on their plate), question (seeking advice or thinking out loud), " +
+        "handoff (send a task to a household member). Prefer reminder when the manager explicitly asks " +
+        "to be reminded. Use the context only to disambiguate. Respond with ONLY JSON: " +
+        '{"intent":"...","confidence":0-1}.',
       messages: [
         { role: "user", content: context ? `Context:\n${context}\n\nMessage: ${message}` : message },
       ],
@@ -62,7 +70,7 @@ export async function routeIntent(message: string, context = ""): Promise<RouteR
       intent?: string;
       confidence?: number;
     };
-    const intents: Intent[] = ["calendar", "task", "completion", "status", "question", "handoff"];
+    const intents: Intent[] = ["calendar", "task", "completion", "status", "question", "handoff", "reminder"];
     const intent = intents.includes(parsed.intent as Intent)
       ? (parsed.intent as Intent)
       : heuristicRoute(message).intent;

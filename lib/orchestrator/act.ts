@@ -1,11 +1,28 @@
 import { ingestText } from "@/lib/capture/ingest";
 import { listTasks, setTaskStatus } from "@/lib/db/repo/tasks";
+import { createReminderRule } from "@/lib/db/repo/reminders";
+import { parseReminder } from "@/lib/reminders/parse";
 import { overdueTasks, dueToday, categorizeWaiting, isOpen } from "@/lib/planner/reminders";
+import { deferPastQuietHours } from "@/lib/planner/quiet-hours";
 import { hasClockTime, sameDay, toDate } from "@/lib/planner/dates";
 import { DEFAULT_TASK_DURATION_MIN } from "@/lib/planner/calendar";
 import { consultReply } from "@/lib/consult/consult";
 import { proposePlan, type ProposedPlan } from "./plan";
 import type { Intent } from "./router";
+
+/** Friendly local rendering of a fire time for the reminder action card. */
+function fmtWhen(d: Date, tz?: string): string {
+  try {
+    return new Intl.DateTimeFormat("en-US", {
+      timeZone: tz,
+      weekday: "short",
+      hour: "numeric",
+      minute: "2-digit",
+    }).format(d);
+  } catch {
+    return d.toISOString();
+  }
+}
 
 /**
  * Action dispatch (FR43). Each intent calls an EXISTING engine module and
@@ -121,6 +138,69 @@ export async function act(
         }
       }
       return { actions };
+    }
+
+    case "reminder": {
+      const parsed = parseReminder(message, new Date(), tz);
+      if (!parsed) {
+        // No schedulable time/recurrence → treat as a normal capture so the
+        // intent is never a dead end ("remind me to review the deck").
+        const r = await ingestText(ownerId, message, "text", tz);
+        if (r.filed && r.task) {
+          return {
+            actions: [
+              {
+                type: "task_created",
+                label: `✓ Task created: ${r.task.name}`,
+                undo: { kind: "delete_task", id: r.task.id },
+              },
+            ],
+          };
+        }
+        const c = await consultReply(ownerId, [{ role: "user", content: message }]);
+        return { actions: [{ type: "noop", label: "" }], content: c.reply };
+      }
+
+      const actions: OrchestratorAction[] = [];
+      let fireAt = parsed.nextFire;
+
+      if (!parsed.recurring) {
+        // One-off: file the underlying to-do so it lands on the ledger/calendar…
+        const r = await ingestText(ownerId, message, "text", tz);
+        if (r.filed && r.task) {
+          actions.push({
+            type: "calendar",
+            label: `📅 Added: ${r.task.name}`,
+            undo: { kind: "delete_task", id: r.task.id },
+          });
+        }
+        // …and push the nudge out of quiet hours so it isn't silently dropped (FR6).
+        fireAt = deferPastQuietHours(parsed.nextFire);
+      }
+
+      await createReminderRule(ownerId, {
+        target: parsed.subject,
+        schedule: parsed.schedule,
+        scheduleConfig: parsed.scheduleConfig ?? undefined,
+        nextFire: fireAt,
+      });
+
+      const deferred = !parsed.recurring && fireAt.getTime() !== parsed.nextFire.getTime();
+      const when = parsed.recurring
+        ? parsed.schedule === "every_n_hours"
+          ? `every ${parsed.scheduleConfig?.hours}h`
+          : "every day"
+        : fmtWhen(fireAt, tz);
+      actions.push({
+        type: "reminder",
+        label: `⏰ Reminder set${deferred ? " (deferred past quiet hours)" : ""}: ${parsed.subject} — ${when}`,
+      });
+      return {
+        actions,
+        content: deferred
+          ? "That lands inside quiet hours (21:00–06:00), so I set the nudge for 06:00 instead."
+          : undefined,
+      };
     }
 
     case "completion": {
