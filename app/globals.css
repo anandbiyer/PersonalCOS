@@ -856,6 +856,35 @@ a {
 .actcard.rem { background: var(--amber-s); color: var(--amber); }
 .actcard .undo { font-family: var(--mono); font-size: 10px; font-weight: 600; opacity: 0.7; margin-left: 4px; border-left: 1px solid currentColor; padding-left: 8px; cursor: pointer; }
 
+/* memory / settings (FR47/FR48) */
+.memwrap { max-width: 760px; margin: 0 auto; }
+.memcard { background: var(--surface); border: 1px solid var(--line); border-radius: 18px; padding: 20px 22px; margin-bottom: 16px; box-shadow: 0 12px 34px -24px rgba(27, 36, 64, 0.3); }
+.memh { font-size: 15px; font-weight: 800; display: flex; align-items: center; gap: 9px; margin-bottom: 8px; }
+.memh .memcount { margin-left: auto; font-size: 11px; font-weight: 600; color: var(--muted); background: var(--line); padding: 3px 10px; border-radius: 20px; }
+.memp { font-size: 12.5px; color: var(--muted); line-height: 1.6; margin-bottom: 14px; }
+.memp b { color: var(--ink); }
+.slidewrap { display: flex; align-items: center; gap: 16px; }
+.slidewrap input[type="range"] { flex: 1; accent-color: var(--office); }
+.slideval { font-family: var(--mono); font-size: 14px; font-weight: 600; }
+.slidehint { font-size: 10px; color: var(--faint); margin-left: 8px; }
+.memwarn { margin-top: 12px; background: var(--amber-s); border-radius: 11px; padding: 11px 14px; font-size: 12px; color: #9a6410; font-weight: 600; }
+.factrow { display: flex; align-items: center; gap: 12px; padding: 11px 0; border-bottom: 1px solid var(--line2); }
+.factrow:last-child { border-bottom: none; }
+.factrow .fk { font-family: var(--mono); font-size: 9px; font-weight: 700; letter-spacing: 1px; padding: 3px 8px; border-radius: 7px; text-transform: uppercase; flex: 0 0 auto; }
+.factrow .fk.pref { background: var(--dev-s); color: var(--dev); }
+.factrow .fk.commit { background: var(--amber-s); color: var(--amber); }
+.factrow .fk.fact { background: var(--office-s); color: var(--office); }
+.factrow .ft { flex: 1; font-size: 13px; }
+.factrow .fx { font-family: var(--mono); font-size: 11px; color: var(--faint); cursor: pointer; padding: 4px 8px; border-radius: 7px; }
+.factrow .fx:hover { color: var(--red); background: var(--red-s); }
+.dayhist { display: flex; flex-direction: column; gap: 2px; }
+.dhrow { display: flex; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--line2); }
+.dhrow:last-child { border-bottom: none; }
+.dhrow .dhd { flex: 1; font-size: 13px; font-weight: 600; font-family: var(--mono); }
+.dhk { font-family: var(--mono); font-size: 10px; font-weight: 600; padding: 3px 9px; border-radius: 20px; }
+.dhk.full { background: var(--life-s); color: var(--life); }
+.dhk.sum { background: var(--line); color: var(--muted); }
+
 /* inline composer affordances (voice + image retained in the single bar) */
 .capbox .ico { color: var(--office); flex: 0 0 auto; }
 .iconbtn { width: 40px; height: 40px; border-radius: 11px; display: grid; place-items: center; color: var(--muted); flex: 0 0 auto; transition: 0.15s; }

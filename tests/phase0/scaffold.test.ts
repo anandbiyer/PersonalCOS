@@ -45,6 +45,7 @@ describe("[P0] scaffold & information architecture", () => {
         "/api/cron/fire-reminders",
         "/api/cron/initiative-review",
         "/api/cron/reminders",
+        "/api/cron/retention",
         "/api/cron/revalidate",
         "/api/cron/sweep",
       ].sort(),

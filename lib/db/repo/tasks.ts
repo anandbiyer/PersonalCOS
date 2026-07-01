@@ -1,6 +1,6 @@
 import { and, desc, eq } from "drizzle-orm";
 import { withOwner } from "@/lib/db";
-import { tasks, audit, taskStatus } from "@/lib/db/schema";
+import { tasks, audit, taskStatus, conversationTurns } from "@/lib/db/schema";
 import type { Portfolio, CaptureModality } from "@/lib/ai/types";
 import { embed, embeddingsEnabled } from "@/lib/ai/embeddings";
 import { indexEntity, searchEntityIdsByVector } from "./embeddings";
@@ -165,6 +165,14 @@ export async function setTaskStatus(
       prevValue: prev ?? null,
       newValue: row ?? null,
     });
+    // Completion is a memory boundary (FR47 §4.6.1): flag turns about this task
+    // for early pruning so the retention sweep can drop them ahead of the window.
+    if (status === "completed") {
+      await tx
+        .update(conversationTurns)
+        .set({ pruneEligible: true })
+        .where(and(eq(conversationTurns.ownerId, ownerId), eq(conversationTurns.refsTaskId, id)));
+    }
     return row;
   });
 }

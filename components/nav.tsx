@@ -39,6 +39,7 @@ const GROUPS: Group[] = [
     ],
   },
   { mode: "Household", items: [{ href: "/inbox", label: "Inbox" }] },
+  { mode: "Settings", items: [{ href: "/memory", label: "Memory" }] },
 ];
 
 export function Nav() {
