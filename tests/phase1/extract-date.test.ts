@@ -55,6 +55,13 @@ describe("extractDueDate (timezone-aware)", () => {
     expect(iso(extractDueDate("Drop son at violin class 5:30pm", NOW, TZ))).toBe("2026-06-27T21:30:00.000Z");
   });
 
+  it("accepts a compact time with no separator (530pm = 5:30pm)", () => {
+    // Office call 5:30pm EDT Jun 27 -> 21:30Z; must NOT default to 9pm.
+    expect(iso(extractDueDate("office call 530pm today", NOW, TZ))).toBe("2026-06-27T21:30:00.000Z");
+    expect(iso(extractDueDate("lunch 1230pm", NOW, TZ))).toBe("2026-06-27T16:30:00.000Z");
+    expect(iso(extractDueDate("standup 930am", NOW, TZ))).toBe("2026-06-27T13:30:00.000Z");
+  });
+
   it("interprets the same text differently per timezone", () => {
     // 7pm in Kolkata (UTC+5:30) -> 13:30Z, vs 23:00Z for New York above.
     expect(iso(extractDueDate("Visit Hanuman temple 7-8pm", NOW, "Asia/Kolkata"))).toBe("2026-06-27T13:30:00.000Z");

@@ -86,6 +86,19 @@ function nextDayOfMonth(today: YMD, day: number): YMD {
  *  HH:MM to avoid false positives on bare numbers ("5 items"). */
 function parseTime(t: string): number | null {
   if (/\bnoon\b/.test(t)) return 12 * 60;
+  // Compact time with no separator: "530pm" → 5:30pm, "1230pm" → 12:30pm. The
+  // last two digits are minutes; the leading 1–2 are the hour. Checked before
+  // the general am/pm form so "530pm" isn't misread (or dropped to the default).
+  const compact = t.match(/\b(\d{3,4})\s*(am|pm)\b/);
+  if (compact) {
+    const mm = parseInt(compact[1].slice(-2), 10);
+    let h = parseInt(compact[1].slice(0, -2), 10);
+    if (h >= 1 && h <= 12 && mm <= 59) {
+      if (h === 12) h = 0;
+      if (compact[2] === "pm") h += 12;
+      return h * 60 + mm;
+    }
+  }
   // Minutes may use a colon OR a period ("5.30pm" — India/UK convention); the
   // am/pm anchor disambiguates so a bare "5.30" is never misread as a time.
   const ampm = t.match(/\b(\d{1,2})(?:[.:](\d{2}))?\s*(?:-\s*\d{1,2}(?:[.:]\d{2})?\s*)?(am|pm)\b/);
