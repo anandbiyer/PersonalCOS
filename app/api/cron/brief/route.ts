@@ -9,12 +9,16 @@ import { projectDay } from "@/lib/planner/calendar";
 import { categorizeWaiting, dueToday, overdueTasks } from "@/lib/planner/reminders";
 import { startOfDay, endOfDay } from "@/lib/planner/dates";
 import { composeBrief } from "@/lib/brief/compose";
+import { openDaySession } from "@/lib/session/lifecycle";
 import { dispatch } from "@/lib/notify";
 
-// cron/brief — 04:25 daily: synthesise & push the morning brief (FR25).
+// cron/brief — 04:25 daily: open the day-session (FR44) + synthesise & push the
+// morning brief (FR25).
 export async function GET(req: NextRequest) {
   return runCron(req, async (ownerId) => {
     const now = new Date();
+    // FR44: proactively open the session thread with the COS's greeting.
+    await openDaySession(ownerId, { greeting: "Good morning" });
     // FR8: roll missed/unscheduled work forward into capacity once a day.
     const replanned = await replanOverdue(ownerId, { apply: true });
     const tasks = await listTasks(ownerId);

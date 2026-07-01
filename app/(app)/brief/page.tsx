@@ -6,6 +6,7 @@ import { listTasks } from "@/lib/db/repo/tasks";
 import { listEvents } from "@/lib/db/repo/events";
 import { listExceptions } from "@/lib/db/repo/exceptions";
 import { lastTurns } from "@/lib/db/repo/turns";
+import { openDaySession } from "@/lib/session/lifecycle";
 import { addDays, endOfDay, startOfDay } from "@/lib/planner/dates";
 import { SessionView } from "@/components/session-view";
 
@@ -22,14 +23,18 @@ export default async function HomePage() {
   const from = startOfDay(addDays(now, -2));
   const to = endOfDay(addDays(now, 2));
 
-  const tasks = await listTasks(ownerId);
-  const events = await listEvents(ownerId, from, to);
-  const exceptions = await listExceptions(ownerId, from, to);
-  const turns = await lastTurns(ownerId, 50);
   const name = await withOwner(ownerId, async (tx) => {
     const [u] = await tx.select({ n: users.displayName }).from(users).where(eq(users.id, ownerId));
     return u?.n ?? "";
   });
+  // FR44: open the day-session lazily so the COS's greeting is there on first
+  // visit too (idempotent — the 04:25 cron opens it proactively otherwise).
+  await openDaySession(ownerId, { name });
+
+  const tasks = await listTasks(ownerId);
+  const events = await listEvents(ownerId, from, to);
+  const exceptions = await listExceptions(ownerId, from, to);
+  const turns = await lastTurns(ownerId, 50);
 
   return (
     <SessionView

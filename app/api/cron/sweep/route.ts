@@ -6,6 +6,7 @@ import { isStalled } from "@/lib/initiatives/invariant";
 import { projectDay } from "@/lib/planner/calendar";
 import { categorizeWaiting, dueToday, overdueTasks } from "@/lib/planner/reminders";
 import { composeBrief } from "@/lib/brief/compose";
+import { closeDaySession } from "@/lib/session/lifecycle";
 import { dispatch } from "@/lib/notify";
 
 // cron/sweep — 21:45 daily: evening completeness-sweep prompt (§6.3). A
@@ -25,6 +26,9 @@ export async function GET(req: NextRequest) {
       waiting: categorizeWaiting(tasks, now),
       stalled,
     });
+    // FR44: post the evening sweep into the thread, close the session, and
+    // finalize a durable day-summary (FR46).
+    await closeDaySession(ownerId, brief.prose);
     return dispatch({ ownerId, kind: "sweep", message: brief.prose });
   });
 }
