@@ -340,5 +340,13 @@ export async function act(
         content: "I can hand that to a household member — open the Inbox to confirm the recipient.",
       };
     }
+
+    case "chitchat": {
+      // A closing / acknowledgement — file nothing, reply warmly, no question.
+      return {
+        actions: [{ type: "noop", label: "" }],
+        content: "You're all set. I'm here whenever you need me.",
+      };
+    }
   }
 }

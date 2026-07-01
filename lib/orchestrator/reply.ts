@@ -5,21 +5,22 @@ import type { Intent } from "./router";
 
 /**
  * Compose the COS's natural-language reply (FR43). When the action already
- * carries content (status answer / advice), that IS the reply. Otherwise we
- * confirm the write + offer a follow-up: deterministic offline (hermetic), or
- * a 1–2 sentence Haiku enhancement when keyed.
+ * carries content (status answer / advice / chitchat), that IS the reply.
+ * Otherwise we confirm-and-stop: a short, grounded acknowledgement with NO
+ * leading follow-up question — a chief of staff files it and reports, it does
+ * not interrogate. Deterministic offline (hermetic), or a 1-sentence Haiku
+ * phrasing when keyed. Asking "Should I…?/Anything else?" here opens a
+ * conversational branch the single-turn router can't reliably answer, so we
+ * don't. (See CLAUDE.md / the orchestrator being single-turn.)
  */
-function deterministicReply(intent: Intent, result: ActResult): string {
-  const label = result.actions.find((a) => a.label)?.label;
+function deterministicReply(intent: Intent): string {
   switch (intent) {
     case "task":
-      return label ? `${label}. Filed and reminder set — want me to block time for it?` : "Got it — captured.";
+      return "Got it — filed to your ledger.";
     case "calendar":
-      return label ? `${label}. Reminder set. Anything else to fit in today?` : "Added to your calendar.";
+      return "Added to your calendar.";
     case "completion":
-      return label
-        ? `${label} — nice, that's checked off. Want me to pull anything forward into the freed time?`
-        : "Marked done.";
+      return "Done — checked off.";
     default:
       return "Done.";
   }
@@ -33,17 +34,19 @@ export async function composeReply(
   // status / question / noop already carry the spoken content.
   if (result.content) return result.content;
 
-  const base = deterministicReply(intent, result);
+  const base = deterministicReply(intent);
   if (aiOffline() || !process.env.ANTHROPIC_API_KEY) return base;
   try {
     const did = result.actions.map((a) => a.label).filter(Boolean).join("; ");
     const msg = await anthropic().messages.create({
       model: modelFor(undefined, "route"),
-      max_tokens: 160,
+      max_tokens: 120,
       system:
         "You are a calm, concise chief of staff replying in an ongoing chat. Given the manager's " +
-        "message and what you just did, write 1–2 natural sentences confirming it and offering a " +
-        "relevant follow-up. No preamble, no lists. Office topics use coded references.",
+        "message and what you just did, reply with ONE short sentence that confirms what you did. " +
+        "Do NOT ask a follow-up question, do NOT offer further help, and state ONLY what you " +
+        "actually did — never claim an action you did not take. No preamble, no lists. Office " +
+        "topics use coded references.",
       messages: [{ role: "user", content: `Manager said: "${message}"\nWhat you did: ${did}` }],
     });
     const block = msg.content.find((b) => b.type === "text");

@@ -17,7 +17,8 @@ export type Intent =
   | "handoff"
   | "reminder"
   | "edit"
-  | "delete";
+  | "delete"
+  | "chitchat";
 
 export interface RouteResult {
   intent: Intent;
@@ -25,6 +26,11 @@ export interface RouteResult {
   via: "llm" | "heuristic";
 }
 
+// A CLOSING / acknowledgement — the WHOLE message is pleasantries with no
+// actionable request. Full-message anchor (^…$) so "ok schedule the demo" or
+// "nothing is ready, add a task" (which contain real requests) never match.
+const CHITCHAT =
+  /^(?:\s*(?:thanks?|thank you|thx|ty|ok(?:ay)?|k|cool|great|perfect|awesome|nice|got it|understood|sounds good|will do|all good|all set|cheers|no(?:pe)?|no thanks|nothing(?:\s+(?:else|further|more|needed|required|for now|now))*|that'?s (?:all|it|great|perfect)|never ?mind|nvm|good stuff|much appreciated|appreciate it|you'?re the best|👍|🙏|🙌)[\s.,!]*)+$/i;
 const REMINDER = /\b(remind me|set (a|an)? ?reminder|reminder to)\b|\bevery\s+\d+\s*(hours?|hrs?|minutes?|mins?)\b|\bevery\s+(morning|day|afternoon|evening|night)\b/i;
 const DELETE = /\b(delete|remove|scrap|get rid of)\b/i;
 const EDIT = /\b(change|update|reschedule|rename|push)\b[^?]*\b(to|due|for)\b/i;
@@ -37,9 +43,13 @@ const CALENDAR = /\b(\d{1,2}(:\d{2})?\s?(am|pm)|at \d{1,2}\b|tomorrow|today|toni
 export function heuristicRoute(message: string): RouteResult {
   const m = message.trim();
   let intent: Intent;
+  // A pure closing/acknowledgement ("thanks", "nothing further") is never an
+  // action — reply politely and do nothing. Checked first; the full-message
+  // anchor keeps it from swallowing messages that contain a real request.
+  if (CHITCHAT.test(m)) intent = "chitchat";
   // "remind me…" is explicit and wins over the calendar/handoff cues it may
   // also contain (a time, or a "…to <name>").
-  if (REMINDER.test(m)) intent = "reminder";
+  else if (REMINDER.test(m)) intent = "reminder";
   else if (HANDOFF.test(m)) intent = "handoff";
   else if (COMPLETION.test(m)) intent = "completion";
   // delete/edit reference an existing task; act.ts confirms a match and falls
@@ -66,10 +76,12 @@ export async function routeIntent(message: string, context = ""): Promise<RouteR
         "(scheduling / an event / a time), task (capture a to-do), completion (something got done), " +
         "status (asking what's on their plate), question (seeking advice or thinking out loud), " +
         "handoff (send a task to a household member), edit (change an EXISTING task — reschedule, " +
-        "rename, move its date), delete (remove/cancel an EXISTING task). Prefer reminder when the " +
-        "manager explicitly asks to be reminded; prefer edit/delete when they refer to a task that " +
-        "already exists. Use the context only to disambiguate. Respond with ONLY JSON: " +
-        '{"intent":"...","confidence":0-1}.',
+        "rename, move its date), delete (remove/cancel an EXISTING task), chitchat (a closing, " +
+        "acknowledgement, thanks, or anything with NO actionable request — e.g. 'thanks', 'nothing " +
+        "further', 'ok'). Prefer reminder when the manager explicitly asks to be reminded; prefer " +
+        "edit/delete when they refer to a task that already exists; prefer chitchat over guessing an " +
+        "action when there is nothing to do. Use the context only to disambiguate. Respond with ONLY " +
+        'JSON: {"intent":"...","confidence":0-1}.',
       messages: [
         { role: "user", content: context ? `Context:\n${context}\n\nMessage: ${message}` : message },
       ],
@@ -80,7 +92,7 @@ export async function routeIntent(message: string, context = ""): Promise<RouteR
       intent?: string;
       confidence?: number;
     };
-    const intents: Intent[] = ["calendar", "task", "completion", "status", "question", "handoff", "reminder", "edit", "delete"];
+    const intents: Intent[] = ["calendar", "task", "completion", "status", "question", "handoff", "reminder", "edit", "delete", "chitchat"];
     const intent = intents.includes(parsed.intent as Intent)
       ? (parsed.intent as Intent)
       : heuristicRoute(message).intent;
