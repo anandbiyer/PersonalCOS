@@ -229,3 +229,52 @@ export function extractDueDate(text: string, now: Date, tz = "UTC"): Date | null
   const mins = minutes ?? DEFAULT_DUE_MINUTES;
   return zonedWallToUtc(target.y, target.mo, target.d, Math.floor(mins / 60), mins % 60, tz);
 }
+
+/**
+ * Reduce a raw capture into a concise task title (FR2) by stripping the parts
+ * that already live in structured fields — leading capture/scheduling verbs
+ * ("schedule", "book", "remind me to") and the date/time/duration/recurrence
+ * phrases the extractors consume. Deterministic; used by the offline classifier
+ * so titles read like "Office call", not "Schedule office call at 530pm today".
+ * Falls back to the trimmed original if stripping would leave nothing.
+ */
+export function cleanTaskTitle(text: string): string {
+  const monthAlt = Object.keys(MONTHS).join("|");
+  const wdAlt = Object.keys(WEEKDAYS).join("|");
+  let s = text.trim().replace(/\s+/g, " ");
+
+  // Leading capture/scheduling verbs (only when they open the phrase).
+  s = s.replace(
+    /^(please\s+)?(schedule|set\s?up|arrange|organi[sz]e|book|add|create|plan|put(?:\s+in)?(?:\s+the\s+calendar)?|remind\s+me(?:\s+to|\s+about)?|reminder\s+to|set\s+(?:a|an)\s+reminder(?:\s+to|\s+for)?)\s+/i,
+    "",
+  );
+
+  // Times (optionally prefixed by "at"), incl. compact "530pm" / 24h "15:30".
+  s = s.replace(/\b(at\s+)?(\d{3,4}\s*(?:am|pm)|\d{1,2}[:.]\d{2}\s*(?:am|pm)|\d{1,2}\s*(?:am|pm)|\d{1,2}:\d{2})\b/gi, " ");
+  s = s.replace(/\bnoon\b/gi, " ");
+
+  // Recurrence + duration.
+  s = s.replace(/\bevery\s+\d+\s*(?:hours?|hrs?|minutes?|mins?)\b/gi, " ");
+  s = s.replace(/\bevery\s+(?:morning|day|afternoon|evening|night|week)\b/gi, " ");
+  s = s.replace(/\b(?:for\s+)?\d+(?:\.\d+)?\s*(?:hours?|hrs?|minutes?|mins?|min)\b/gi, " ");
+  s = s.replace(/\bfor\s+(?:an?\s+)?(?:hour|half\s+an\s+hour)\b/gi, " ");
+
+  // Relative + absolute dates.
+  s = s.replace(/\b(?:day after tomorrow|tomorrow|today|tonight|this (?:morning|afternoon|evening|weekend))\b/gi, " ");
+  s = s.replace(/\bin\s+\d{1,3}\s+days?\b/gi, " ");
+  s = s.replace(/\b(?:in\s+a\s+week|next\s+week|next\s+month)\b/gi, " ");
+  s = s.replace(new RegExp(`\\b(?:on|by|this|next)?\\s*(?:${wdAlt})\\b`, "gi"), " ");
+  s = s.replace(new RegExp(`\\b(?:${monthAlt})\\.?\\s+\\d{1,2}(?:st|nd|rd|th)?(?:,?\\s+\\d{4})?\\b`, "gi"), " ");
+  s = s.replace(new RegExp(`\\b\\d{1,2}(?:st|nd|rd|th)?\\s+(?:of\\s+)?(?:${monthAlt})\\b`, "gi"), " ");
+  s = s.replace(/\b(?:on|by)?\s*the\s+\d{1,2}(?:st|nd|rd|th)\b/gi, " ");
+  s = s.replace(/\b\d{4}-\d{2}-\d{2}\b/g, " ");
+
+  // Collapse and trim dangling connectives left at the edges.
+  s = s.replace(/\s{2,}/g, " ").trim();
+  s = s.replace(/^(?:at|on|by|for|to|the|a|an|this)\s+/i, "");
+  s = s.replace(/\s+(?:at|on|by|for|to|the|a|an|this)$/i, "");
+  s = s.replace(/^[\s,.:;–-]+|[\s,.:;–-]+$/g, "").trim();
+
+  if (s.length < 2) return text.trim().replace(/\s+/g, " ").slice(0, 120);
+  return (s.charAt(0).toUpperCase() + s.slice(1)).slice(0, 120);
+}

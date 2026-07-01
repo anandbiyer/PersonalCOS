@@ -28,7 +28,17 @@ describe("[P1] capture classification", () => {
 
   it("derives a trimmed title and records provenance via (T-FR1-03)", () => {
     const c = heuristicClassify("   call   the   dentist   ");
-    expect(c.title).toBe("call the dentist");
+    expect(c.title).toBe("Call the dentist");
     expect(c.via).toBe("heuristic");
+  });
+
+  it("strips scheduling verbs + time/date noise from the title (T-FR2-05)", () => {
+    expect(heuristicClassify("Schedule office call at 530pm today").title).toBe("Office call");
+    expect(heuristicClassify("remind me to submit the Client F workbook").title).toBe("Submit the Client F workbook");
+    expect(heuristicClassify("book badminton court for Saturday").title).toBe("Badminton court");
+    expect(heuristicClassify("pay rent on the 1st").title).toBe("Pay rent");
+    expect(heuristicClassify("dentist Thursday 4 PM").title).toBe("Dentist");
+    // Nothing to strip → just trimmed + sentence-cased.
+    expect(heuristicClassify("call the plumber").title).toBe("Call the plumber");
   });
 });

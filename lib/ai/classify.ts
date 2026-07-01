@@ -1,5 +1,6 @@
 import { anthropic, modelFor } from "./index";
 import { aiOffline } from "./offline";
+import { cleanTaskTitle } from "@/lib/capture/extract-date";
 import type { Portfolio } from "./types";
 
 /**
@@ -67,7 +68,7 @@ export function heuristicClassify(text: string): Classification {
   ];
   ranked.sort((a, b) => b[1] - a[1]);
   const portfolio = ranked[0][1] > 0 ? ranked[0][0] : "personal_life";
-  const title = text.trim().replace(/\s+/g, " ").slice(0, 120);
+  const title = cleanTaskTitle(text);
   return {
     kind,
     portfolio,
