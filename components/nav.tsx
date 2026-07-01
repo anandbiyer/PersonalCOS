@@ -4,14 +4,29 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import type { ReactNode } from "react";
+import type { NavCounts } from "@/lib/nav/counts";
 
-type Item = {
-  href: string;
-  label: string;
-  badge?: { text: string; tone?: "warn" | "rose" };
-};
+type Item = { href: string; label: string };
 
 type Group = { mode: string; items: Item[] };
+
+type BadgeTone = "warn" | "rose";
+
+// Which routes carry a live badge, and its tone. Only shown when count > 0.
+const BADGES: Record<string, { key: keyof NavCounts; tone?: BadgeTone }> = {
+  "/tasks": { key: "tasks" },
+  "/waiting": { key: "waiting", tone: "warn" },
+  "/initiatives": { key: "initiatives", tone: "rose" },
+  "/inbox": { key: "inbox", tone: "rose" },
+};
+
+function badgeFor(href: string, counts?: NavCounts) {
+  const spec = BADGES[href];
+  if (!spec || !counts) return null;
+  const n = counts[spec.key];
+  if (!n || n <= 0) return null;
+  return { text: String(n), tone: spec.tone };
+}
 
 // Line-icons per route, matching the mockup's left-nav glyphs (18px, stroked).
 const ICONS: Record<string, ReactNode> = {
@@ -84,7 +99,7 @@ const GROUPS: Group[] = [
     mode: "System of Action",
     items: [
       { href: "/calendar", label: "Calendar" },
-      { href: "/waiting", label: "Waiting on", badge: { text: "0", tone: "warn" } },
+      { href: "/waiting", label: "Waiting on" },
       { href: "/reports", label: "Reports" },
     ],
   },
@@ -100,7 +115,7 @@ const GROUPS: Group[] = [
   { mode: "Settings", items: [{ href: "/memory", label: "Memory" }] },
 ];
 
-export function Nav() {
+export function Nav({ counts }: { counts?: NavCounts }) {
   const pathname = usePathname();
 
   return (
@@ -110,6 +125,7 @@ export function Nav() {
           <div className="mode">{g.mode}</div>
           {g.items.map((it) => {
             const active = pathname === it.href || pathname.startsWith(it.href + "/");
+            const badge = badgeFor(it.href, counts);
             return (
               <Link
                 key={it.href}
@@ -118,9 +134,7 @@ export function Nav() {
               >
                 <NavIcon href={it.href} />
                 {it.label}
-                {it.badge && (
-                  <span className={cn("badge", it.badge.tone)}>{it.badge.text}</span>
-                )}
+                {badge && <span className={cn("badge", badge.tone)}>{badge.text}</span>}
               </Link>
             );
           })}
