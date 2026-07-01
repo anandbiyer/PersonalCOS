@@ -20,7 +20,7 @@
 | **FR2-T2** | `Book badminton court for Saturday` | non-Office | Filed, portfolio `personal_dev` *(offline heuristic; `personal_life` expected online — see §3)* | ⚠️ ✅* |
 | **FR40-T1** | `submit the workbook by July 5` | next 5 Jul, 21:00 | **5 Jul 2026, 21:00** | ✅ |
 | **FR40-T2** | `call the bank in 3 days` | today+3, 21:00 | **4 Sept 2025, 21:00** | ✅ |
-| **FR41-T1** | `pay rent on the 1st` | 21:00 on the 1st | **due = null** — bare ordinal day not parsed (see §3) | ❌ |
+| **FR41-T1** | `pay rent on the 1st` | 21:00 on the 1st | **1 Sept 2025, 21:00** — bare ordinal now parsed to the next occurrence (fixed) | ✅ |
 | **FR41-T2** | `credit card bill due Friday` | nearest Fri 21:00 | **5 Sept 2025, 21:00** | ✅ |
 | **FR42-T1** | `meeting at 3 PM tomorrow` | Tue 2 Sep 15:00 IST | **IST 2 Sept 2025 15:00** (UTC 09:30Z) | ✅ |
 | **FR6-T1** | `remind me to call the plumber at 9pm` | reminder, deferred to 06:00 | 1 `one_off` rule + task filed; `deferPastQuietHours(21:00) → 06:00`, `isQuietHours(21:00)=true` | ✅ |
@@ -78,7 +78,7 @@ These ✅ requirements are screen/config/security checks; verified by code + the
 
 ## 3. Findings (from execution)
 
-1. **FR41-T1 fails as written — `pay rent on the 1st` yields no due date.** The extractor needs a month (or a weekday / relative phrase); a bare ordinal day (“the 1st”) returns `null`. **FR41-T2 works** (“due Friday” → nearest Friday 21:00). *Recommendation: either treat a bare “the Nth” as the next occurrence of that day-of-month, or downgrade FR41 to 🟡 in the assessment.*
+1. **FR41-T1 — FIXED.** A bare ordinal day (“the 1st”, “by the 30th”) now resolves to the **next occurrence of that day-of-month** at the 21:00 default (`lib/capture/extract-date.ts` → `nextDayOfMonth`), clamped to month length. Verified: `pay rent on the 1st` → 1 Sept 2025 21:00; `by the 30th` → this-month 30th. Bare numbers without the ordinal form (“5 items”) still parse to no date.
 2. **FR2-T2 offline classification** — “Book badminton court” was filed as `personal_dev` under the deterministic heuristic. The invariant (filed, non-office) holds; correct `personal_life` labeling is expected from the **online** classifier (Haiku). Re-run with `ANTHROPIC_API_KEY` for full-fidelity portfolio checks.
 3. **FR1-T1 routing path** — “Remind me to …” (no time) is routed to the `reminder` intent, finds no schedule, and **falls back to plain capture** → the task is filed correctly. Behaviour is right; the path just runs through the reminder handler.
 4. **Quiet-hours is server-local time.** The 21:00→06:00 defer (FR6-T1) is proven deterministically, but evaluated in the server's local timezone, not per-user tz — verify against the deployed timezone.
@@ -88,8 +88,8 @@ These ✅ requirements are screen/config/security checks; verified by code + the
 
 ## 4. Summary
 
-- **Executed (chat/DB/function):** 33 assertions across the ✅ set — **32 pass**, **1 fail (FR41-T1)**, **1 caveat (FR2-T2 offline label)**.
+- **Executed (chat/DB/function):** the ✅ set — **all pass** after the FR41-T1 fix; **1 caveat (FR2-T2 offline label, expected to resolve online)**.
 - **Verified (inspection):** 14 screen/security/config ✅ items confirmed by code + the passing suite (some gated on live keys).
-- **Net:** the ✅ set holds up under execution, with **one genuine gap (FR41-T1 bare-ordinal dates)** worth fixing or reclassifying, and the expected offline/online classification nuance.
+- **Net:** the ✅ set holds up under execution. FR41-T1 (bare-ordinal dates) has been fixed; the only remaining nuance is the expected offline→online classification difference on FR2-T2. Full suite **200 green**.
 
 *Harness: `tests/uat/executable.test.ts` — re-run with `npx vitest run tests/uat/executable.test.ts`.*

@@ -69,6 +69,19 @@ function cmpYMD(a: YMD, b: YMD): number {
   return Date.UTC(a.y, a.mo - 1, a.d) - Date.UTC(b.y, b.mo - 1, b.d);
 }
 
+/** Next occurrence of a day-of-month (this month if still upcoming, else next),
+ *  clamping to the target month's length (e.g. "the 31st" in a 30-day month). */
+function nextDayOfMonth(today: YMD, day: number): YMD {
+  let y = today.y;
+  let mo = today.mo;
+  if (day < today.d) {
+    mo += 1;
+    if (mo > 12) { mo = 1; y += 1; }
+  }
+  const daysInMonth = new Date(Date.UTC(y, mo, 0)).getUTCDate();
+  return { y, mo, d: Math.min(day, daysInMonth) };
+}
+
 /** Minutes-of-day for a recognised clock time, else null. Requires am/pm or
  *  HH:MM to avoid false positives on bare numbers ("5 items"). */
 function parseTime(t: string): number | null {
@@ -165,6 +178,15 @@ function parseDate(t: string, today: YMD): YMD | null {
     let cand: YMD = { y: year ?? today.y, mo, d: day };
     if (year === undefined && cmpYMD(cand, today) < 0) cand = { ...cand, y: cand.y + 1 };
     return cand;
+  }
+
+  // Bare ordinal day-of-month with no month named ("pay rent on the 1st",
+  // "by the 15th") → the next occurrence of that day. Requires the "the Nth"
+  // ordinal form so bare numbers ("5 items") never read as a date.
+  const ord = t.match(/\bthe\s+(\d{1,2})(?:st|nd|rd|th)\b/);
+  if (ord) {
+    const d = parseInt(ord[1], 10);
+    if (d >= 1 && d <= 31) return nextDayOfMonth(today, d);
   }
 
   const wd = t.match(new RegExp(`\\b(?:next\\s+)?(${Object.keys(WEEKDAYS).join("|")})\\b`));

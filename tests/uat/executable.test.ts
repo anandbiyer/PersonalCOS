@@ -109,10 +109,10 @@ describe("UAT ✅ executable cases", () => {
   });
 
   // ---- FR41 9pm default ----
-  it("FR41-T1 'pay rent on the 1st' (date-only)", () => {
+  it("FR41-T1 'pay rent on the 1st' → next occurrence, 9pm default", () => {
     const d = extractDueDate("pay rent on the 1st", NOW, IST);
-    rec("FR41-T1", true, `due=${isoIST(d)} (observed)`);
-    // Recorded as observed — see report note on bare 'the 1st'.
+    rec("FR41-T1", !!d, `due=${isoIST(d)}`);
+    expect(isoIST(d)).toMatch(/1 Sept? 2025, 21:00/);
   });
 
   it("FR41-T2 'due Friday' → nearest Friday 21:00", () => {

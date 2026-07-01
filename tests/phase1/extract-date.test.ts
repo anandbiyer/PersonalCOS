@@ -60,6 +60,15 @@ describe("extractDueDate (timezone-aware)", () => {
     expect(iso(extractDueDate("Visit Hanuman temple 7-8pm", NOW, "Asia/Kolkata"))).toBe("2026-06-27T13:30:00.000Z");
   });
 
+  it("parses a bare ordinal day-of-month as the next occurrence, 9pm default", () => {
+    // NOW = Sat Jun 27 2026 EDT. "the 1st" → next 1st = Jul 1 (this month's is past).
+    expect(iso(extractDueDate("pay rent on the 1st", NOW, TZ))).toBe("2026-07-02T01:00:00.000Z");
+    // "the 30th" is still upcoming this month → Jun 30.
+    expect(iso(extractDueDate("credit card bill by the 30th", NOW, TZ))).toBe("2026-07-01T01:00:00.000Z");
+    // Bare number without the ordinal form is NOT a date.
+    expect(extractDueDate("Buy 5 items at the store", NOW, TZ)).toBeNull();
+  });
+
   it("returns null when there is no date or time", () => {
     expect(extractDueDate("Review the quarterly numbers", NOW, TZ)).toBeNull();
     expect(extractDueDate("Buy 5 items at the store", NOW, TZ)).toBeNull();
