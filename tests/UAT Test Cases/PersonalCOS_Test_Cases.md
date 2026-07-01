@@ -24,7 +24,10 @@ Use these anchors when a case involves time. Adjust to your own device/timezone 
 
 > Reviewed each case against the current code on branch `feat/conversational-upgrade` (orchestrator, domain engines, repos, API routes, and UI screens). This section says **which cases can be run as written and which cannot**, and why.
 >
-> **Update — Increment A shipped (2026-07):** conversational **reminders (FR6, FR38)** are now wired to the orchestrator, and quiet-hours became a **21:00–06:00 night window with defer-to-06:00** (matching this pack's anchor). Those rows are updated below. Increment B (task **edit/delete**, FR11) is not yet done.
+> **Update — Increments A & B shipped (2026-07):**
+> - **A:** conversational **reminders (FR6, FR38)** wired to the orchestrator; quiet-hours became a **21:00–06:00 night window with defer-to-06:00**.
+> - **B:** conversational **task edit & delete (FR11)** — "change … to Friday" reschedules (audited, so **FR14-T2** is now covered); "delete …" soft-cancels (recoverable), both fuzzy-matching an existing task and asking which one when unsure.
+> Those rows are updated below.
 
 ### The single most important lens: the conversational surface routes only 6 intents
 The home composer (`/api/orchestrator`) classifies every message into exactly **six intents** and nothing else:
@@ -55,10 +58,10 @@ The implemented weekly template is **Study 04:30–05:30 · Office 07:30–17:00
 |---|---|---|
 | **FR1** Capture | ✅ | Works. Note: "*remind me to…*" files a **task**, not a reminder rule (see FR6). |
 | **FR2** Classify | ✅ | Portfolio chip + due-date extraction on capture. |
-| **FR11** Ledger CRUD | 🟡 | **Create** via chat ✅. **Edit/Delete via chat ❌** — no edit/delete intent (T1/T2 not executable as written). Delete is possible via a just-created card's *undo*, or the `/api/tasks/[id]` API. Persistence/reload ✅. |
+| **FR11** Ledger CRUD | ✅ | *(Increment B)* Create ✅; "*change the dry cleaning task to due Friday*" reschedules (fuzzy-matched, audited); "*delete the badminton task*" soft-cancels (recoverable via undo). Ambiguous → asks which task. |
 | **FR12** Decisions | ❌ | "*record a decision*" files a **task**. Decisions are created only via `advisory/commit` (operationalise) and retrieved only as consult grounding (online). Not executable as written. |
 | **FR13** Search | 🖥️ | Use the **Tasks screen search box** (semantic). Chat "*show me…*" hits the `status` intent → counts, not results. |
-| **FR14** Audit | ✅ | T1 status-change audit ✅ (complete via chat writes an audit row). T2 due-date edit — no chat edit path; verify via an API edit. |
+| **FR14** Audit | ✅ | T1 status-change audit ✅. T2 due-date edit now audited via the conversational edit (Increment B) — `task.updated` rows carry full before/after. |
 | **FR18** Notes→actions | ❌ | `ingestText` creates **one** task; it does **not** split a multi-item note into several tasks, nor extract a waiting-on. |
 | **FR19** People register | 🖥️ | Create via **People screen/`/api/people`**; chat files a task. T2 "*who am I waiting on*" → status counts (+ **Waiting** screen). |
 | **FR29** Multimodal | ✅ | Voice → `/api/capture/voice`, Image → `/api/capture/image`, provenance set. **Needs STT/Vision keys** (offline = no-op). |
@@ -112,17 +115,17 @@ The implemented weekly template is **Study 04:30–05:30 · Office 07:30–17:00
 | **NFR-11** UI adherence | ✅ | Conversation-first home, plan card, action cards, one composer; tokens/IA/themes. |
 | **FR32** Browser action | ⬜ | Deferred. No explicit graceful-decline — the input is mis-handled as a task/consult rather than clearly declined. |
 
-### Tally *(after Increment A)*
-- **✅ Executable as written (chat or UI/Verify) — 32:** FR1, FR2, **FR6**, FR14 (T1), FR29, FR30, FR31, FR28, **FR38**, FR40, FR41, FR42 (display), FR26, FR33, FR34, FR35, FR36, FR37, FR39, FR43, FR44, FR46, FR47, NFR-2, NFR-3, NFR-5, NFR-6, NFR-7, NFR-8, NFR-9, NFR-10, NFR-11.
-- **🟡 Partial / caveated — 11:** FR4, FR7, FR8/FR45, FR11, FR20, FR21, FR23, FR24 (T2), FR25, FR48, NFR-4.
+### Tally *(after Increments A & B)*
+- **✅ Executable as written (chat or UI/Verify) — 33:** FR1, FR2, **FR6**, **FR11**, FR14, FR29, FR30, FR31, FR28, **FR38**, FR40, FR41, FR42 (display), FR26, FR33, FR34, FR35, FR36, FR37, FR39, FR43, FR44, FR46, FR47, NFR-2, NFR-3, NFR-5, NFR-6, NFR-7, NFR-8, NFR-9, NFR-10, NFR-11.
+- **🟡 Partial / caveated — 10:** FR4, FR7, FR8/FR45, FR20, FR21, FR23, FR24 (T2), FR25, FR48, NFR-4.
 - **🖥️ Built but only via screen/API (not the chat input written) — 8:** FR3, FR9, FR10, FR13, FR15, FR16, FR17, FR19.
 - **❌ Blocked as written (needs new wiring) — 6:** FR5, FR12, FR18, FR22, FR27, NFR-1.
 - **⬜ Deferred — 1:** FR32.
 
-*Movement from Increment A: FR6 & FR38 ❌→✅ (Blocked-as-written 8→6, Executable 30→32). Increment B (FR11 edit/delete) would move FR11 🟡→✅ next.*
+*Movement: Increment A — FR6 & FR38 ❌→✅. Increment B — FR11 🟡→✅ (and FR14-T2 now covered). Executable 30→33, Partial 11→10, Blocked-as-written 8→6.*
 
 ### If the goal is "run the whole pack conversationally"
-The highest-leverage gaps are all about **wiring existing engines to the orchestrator**: ~~reminder rules (FR6/FR38)~~ ✅ *done (Increment A)*; **edit/delete** of tasks (FR11) *← Increment B, next*; **decisions** (FR12), **initiatives + advisory/operationalise** (FR3/FR15/FR16), **people/waiting-on** (FR19/FR23), **reports/at-risk** (FR10/FR24), **search** (FR13), and **multi-task note extraction** (FR18). NFR-1 (auto-coding office names) is the one true *new-capability* gap.
+The highest-leverage gaps are all about **wiring existing engines to the orchestrator**: ~~reminder rules (FR6/FR38)~~ ✅ *(Increment A)*; ~~edit/delete of tasks (FR11)~~ ✅ *(Increment B)*; **decisions** (FR12), **initiatives + advisory/operationalise** (FR3/FR15/FR16), **people/waiting-on** (FR19/FR23), **reports/at-risk** (FR10/FR24), **search** (FR13), and **multi-task note extraction** (FR18). NFR-1 (auto-coding office names) is the one true *new-capability* gap.
 
 ---
 
