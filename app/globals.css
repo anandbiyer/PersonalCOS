@@ -840,7 +840,7 @@ a {
 .plancard.agreed .ph .tagp { background: var(--life); color: #fff; }
 .pitem { display: flex; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--line2); font-size: 13px; align-items: center; }
 .pitem:last-of-type { border-bottom: none; }
-.pitem .ptm { font-family: var(--mono); font-size: 11.5px; color: var(--muted); width: 70px; flex: 0 0 auto; }
+.pitem .ptm { font-family: var(--mono); font-size: 11.5px; color: var(--muted); width: 132px; flex: 0 0 auto; }
 .pitem .ptt { flex: 1; }
 .pitem .pdot { width: 8px; height: 8px; border-radius: 3px; flex: 0 0 auto; }
 .pitem.moved { background: var(--amber-s); margin: 0 -8px; padding: 8px; border-radius: 8px; border-bottom: none; }

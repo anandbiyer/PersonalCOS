@@ -43,6 +43,21 @@ const ACT_CLASS: Record<string, string> = {
 const dotColor = (p?: string) =>
   p === "office" ? "var(--office)" : p === "personal_dev" ? "var(--dev)" : p === "personal_life" ? "var(--life)" : "var(--muted)";
 
+/** "04:30" → "4:30am" (12-hour, device-local strings from projectDay). */
+const fmtClock = (hhmm?: string): string => {
+  if (!hhmm) return "";
+  const [h, m] = hhmm.split(":").map(Number);
+  if (Number.isNaN(h) || Number.isNaN(m)) return hhmm;
+  const ap = h < 12 ? "am" : "pm";
+  const h12 = h % 12 === 0 ? 12 : h % 12;
+  return `${h12}:${String(m).padStart(2, "0")}${ap}`;
+};
+
+/** Plan-row time label: a start–end range when the item has a duration
+ *  (routine blocks/events), else just the start (a timed task). */
+const timeRange = (i: { start?: string; end?: string }): string =>
+  i.start ? (i.end ? `${fmtClock(i.start)} to ${fmtClock(i.end)}` : fmtClock(i.start)) : "";
+
 /** Revised-plan card (FR45): the proposed moves, with Agree / Tweak. */
 function PlanCard({ plan, onAgree, onTweak, busy }: { plan: ProposedPlan; onAgree: () => void; onTweak: () => void; busy: boolean }) {
   const fmtDay = (iso: string) => new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" });
@@ -179,7 +194,7 @@ export function SessionView({
                   plan.map((i) => (
                     <div className="pitem" key={i.key}>
                       <span className="pdot" style={{ background: dotColor(i.portfolio) }} />
-                      <span className="ptm">{i.start ?? ""}</span>
+                      <span className="ptm">{timeRange(i)}</span>
                       <span className="ptt">{i.title}</span>
                     </div>
                   ))
