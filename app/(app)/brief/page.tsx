@@ -27,9 +27,9 @@ export default async function HomePage() {
     const [u] = await tx.select({ n: users.displayName }).from(users).where(eq(users.id, ownerId));
     return u?.n ?? "";
   });
-  // FR44: open the day-session lazily so the COS's greeting is there on first
-  // visit too (idempotent — the 04:25 cron opens it proactively otherwise).
-  await openDaySession(ownerId, { name });
+  // FR44: open the day-session record lazily (idempotent; the 04:25 cron opens
+  // it proactively otherwise). The greeting itself renders client-side.
+  await openDaySession(ownerId);
 
   const tasks = await listTasks(ownerId);
   const events = await listEvents(ownerId, from, to);

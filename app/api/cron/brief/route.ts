@@ -17,8 +17,9 @@ import { dispatch } from "@/lib/notify";
 export async function GET(req: NextRequest) {
   return runCron(req, async (ownerId) => {
     const now = new Date();
-    // FR44: proactively open the session thread with the COS's greeting.
-    await openDaySession(ownerId, { greeting: "Good morning" });
+    // FR44: proactively open the day-session record (the greeting is rendered
+    // client-side in the thread).
+    await openDaySession(ownerId);
     // FR8: roll missed/unscheduled work forward into capacity once a day.
     const replanned = await replanOverdue(ownerId, { apply: true });
     const tasks = await listTasks(ownerId);

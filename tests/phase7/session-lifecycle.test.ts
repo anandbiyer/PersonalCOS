@@ -15,22 +15,14 @@ describe("[P7] session lifecycle (open / close)", () => {
     await closeDb();
   });
 
-  it("opens the day with a proactive COS greeting, and is idempotent per day", async () => {
-    const opened = await openDaySession(OWNER_A, { greeting: "Good morning", name: "Anand" });
-    expect(opened).toBe(true);
-
-    const turns = await lastTurns(OWNER_A, 10);
-    const greetings = turns.filter((t) => t.role === "cos" && t.text.startsWith("Good morning, Anand"));
-    expect(greetings.length).toBe(1);
-    expect(greetings[0].text).toContain("What would you like to add");
-
-    // Second open the same day is a no-op (no duplicate greeting).
-    const again = await openDaySession(OWNER_A, { greeting: "Good morning", name: "Anand" });
-    expect(again).toBe(false);
-    const after = (await lastTurns(OWNER_A, 10)).filter(
-      (t) => t.role === "cos" && t.text.startsWith("Good morning, Anand"),
-    );
-    expect(after.length).toBe(1);
+  it("opens the day-session record and is idempotent per day", async () => {
+    expect(await openDaySession(OWNER_A)).toBe(true);
+    const conv = await currentConversation(OWNER_A);
+    expect(conv).not.toBeNull();
+    // The greeting is client-rendered, so open posts no turn yet.
+    expect((await lastTurns(OWNER_A, 10)).length).toBe(0);
+    // Second open the same day is a no-op.
+    expect(await openDaySession(OWNER_A)).toBe(false);
   });
 
   it("closes the day: posts the sweep, marks the session closed, finalizes a summary", async () => {

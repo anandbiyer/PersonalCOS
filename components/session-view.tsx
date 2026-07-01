@@ -160,30 +160,45 @@ export function SessionView({
         </div>
 
         {now && (
-          <div className="msg cos">
-            <div className="ava">CS</div>
-            <div className="plancard">
-              <div className="ph">
-                📋 Today’s plan
-                <span className="tagp" style={{ background: "var(--office)", color: "#fff" }}>TODAY</span>
+          <>
+            {/* The COS opens the day (FR44): greeting → plan → invitation. */}
+            <div className="msg cos">
+              <div className="ava">CS</div>
+              <div className="bubble">
+                {greeting}. Here’s the plan I’ve put together for today — reminders are already set on each item.
               </div>
-              {plan.length ? (
-                plan.map((i) => (
-                  <div className="pitem" key={i.key}>
-                    <span className="pdot" style={{ background: dotColor(i.portfolio) }} />
-                    <span className="ptm">{i.start ?? ""}</span>
-                    <span className="ptt">{i.title}</span>
-                  </div>
-                ))
-              ) : (
-                <div className="pitem">
-                  <span className="ptt" style={{ color: "var(--muted)" }}>
-                    Nothing scheduled yet — tell me what’s on today.
-                  </span>
-                </div>
-              )}
             </div>
-          </div>
+            <div className="msg cos">
+              <div className="ava">CS</div>
+              <div className="plancard">
+                <div className="ph">
+                  📋 Today’s plan
+                  <span className="tagp" style={{ background: "var(--office)", color: "#fff" }}>TODAY</span>
+                </div>
+                {plan.length ? (
+                  plan.map((i) => (
+                    <div className="pitem" key={i.key}>
+                      <span className="pdot" style={{ background: dotColor(i.portfolio) }} />
+                      <span className="ptm">{i.start ?? ""}</span>
+                      <span className="ptt">{i.title}</span>
+                    </div>
+                  ))
+                ) : (
+                  <div className="pitem">
+                    <span className="ptt" style={{ color: "var(--muted)" }}>
+                      Nothing scheduled yet — tell me what’s on today.
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className="msg cos">
+              <div className="ava">CS</div>
+              <div className="bubble">
+                What would you like to add, update, or talk through? Just tell me — I’ll handle the filing, scheduling and reminders.
+              </div>
+            </div>
+          </>
         )}
 
         {turns.map((t) =>
