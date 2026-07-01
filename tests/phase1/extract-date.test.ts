@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { extractDueDate } from "@/lib/capture/extract-date";
+import { extractDueDate, extractDurationMin } from "@/lib/capture/extract-date";
 
 // Timezone-explicit + machine-independent: we pass an IANA tz and a fixed UTC
 // instant, and assert the exact resulting UTC instant. America/New_York is EDT
@@ -63,5 +63,26 @@ describe("extractDueDate (timezone-aware)", () => {
   it("returns null when there is no date or time", () => {
     expect(extractDueDate("Review the quarterly numbers", NOW, TZ)).toBeNull();
     expect(extractDueDate("Buy 5 items at the store", NOW, TZ)).toBeNull();
+  });
+});
+
+describe("extractDurationMin", () => {
+  it("derives a duration from an explicit start–end window", () => {
+    expect(extractDurationMin("Block 2-2:30pm for a focus sprint")).toBe(30);
+    expect(extractDurationMin("Deep work 2pm to 4pm")).toBe(120);
+    expect(extractDurationMin("Standup 09:00-09:15")).toBe(15);
+  });
+
+  it("parses a stated duration phrase", () => {
+    expect(extractDurationMin("Add a 30 min block at 2pm")).toBe(30);
+    expect(extractDurationMin("Hold 45-min review")).toBe(45);
+    expect(extractDurationMin("Reserve 1.5 hours for the deck")).toBe(90);
+    expect(extractDurationMin("Grab a coffee for half an hour")).toBe(30);
+    expect(extractDurationMin("Take an hour to plan")).toBe(60);
+  });
+
+  it("returns null when no duration is stated and ignores clock times like 2pm", () => {
+    expect(extractDurationMin("Call the vendor at 2pm")).toBeNull();
+    expect(extractDurationMin("Review the quarterly numbers")).toBeNull();
   });
 });

@@ -95,6 +95,51 @@ function parseTime(t: string): number | null {
   return null;
 }
 
+/** End-of-range minutes when the text gives a start–end window ("2-2:30pm",
+ *  "7 to 8pm", "18:00-18:30"), else null. Used to derive an explicit duration. */
+function parseEndTime(t: string): number | null {
+  // am/pm may appear after the start ("2pm to 4pm"), the end only ("2-2:30pm"),
+  // or both — the trailing am/pm is what anchors the end time.
+  let m = t.match(/\b(\d{1,2})(?:[.:](\d{2}))?\s*(?:am|pm)?\s*(?:-|–|to)\s*(\d{1,2})(?:[.:](\d{2}))?\s*(am|pm)\b/);
+  if (m) {
+    let h = parseInt(m[3], 10);
+    const mm = m[4] ? parseInt(m[4], 10) : 0;
+    if (h > 12 || mm > 59) return null;
+    if (h === 12) h = 0;
+    if (m[5] === "pm") h += 12;
+    return h * 60 + mm;
+  }
+  m = t.match(/\b(\d{1,2}):(\d{2})\s*(?:-|–|to)\s*(\d{1,2}):(\d{2})\b/);
+  if (m) {
+    const h = parseInt(m[3], 10);
+    const mm = parseInt(m[4], 10);
+    if (h > 23 || mm > 59) return null;
+    return h * 60 + mm;
+  }
+  return null;
+}
+
+/**
+ * Extract an explicit duration in minutes from capture text (FR4). Prefers a
+ * stated start–end window ("2-2:30pm" → 30); falls back to a duration phrase
+ * ("30 min", "1.5 hours", "half an hour"). Returns null when none is present —
+ * the caller then applies its own default block length. Pure / key-free.
+ */
+export function extractDurationMin(text: string): number | null {
+  const t = text.toLowerCase();
+  const start = parseTime(t);
+  const end = parseEndTime(t);
+  if (start !== null && end !== null && end > start) return end - start;
+
+  let m = t.match(/\b(\d+(?:\.\d+)?)[\s-]*(hours?|hrs?|hr)\b/);
+  if (m) return Math.round(parseFloat(m[1]) * 60);
+  m = t.match(/\b(\d+)[\s-]*(minutes?|mins?|min)\b/);
+  if (m) return parseInt(m[1], 10);
+  if (/\bhalf an hour\b|\bhalf hour\b/.test(t)) return 30;
+  if (/\ban hour\b/.test(t)) return 60;
+  return null;
+}
+
 /** Resolve a calendar date (in the user's tz) from the text, else null. */
 function parseDate(t: string, today: YMD): YMD | null {
   if (/\bday after tomorrow\b/.test(t)) return addDaysYMD(today, 2);

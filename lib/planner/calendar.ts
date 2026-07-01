@@ -2,6 +2,16 @@ import { addDays, hasClockTime, hhmm, parseHHMM, sameDay, startOfWeek, toDate } 
 import { templateFor } from "./template";
 import type { CalItem, DayPlan, PlanData } from "./types";
 
+/** Assumed block length for a timed task/event with no stated duration (FR28),
+ *  so the calendar and Today's-plan render a start–end range, not just a start. */
+export const DEFAULT_TASK_DURATION_MIN = 30;
+
+/** minutes-of-day → "HH:MM", clamped to the end of the day. */
+function minToHHMM(min: number): string {
+  const c = Math.min(Math.max(min, 0), 23 * 60 + 59);
+  return `${String(Math.floor(c / 60)).padStart(2, "0")}:${String(c % 60).padStart(2, "0")}`;
+}
+
 /**
  * Calendar projection (FR28): weekly template + schedule_exceptions + dated
  * tasks/events, colour-coded by portfolio. The current date is the default
@@ -41,6 +51,8 @@ export function projectDay(date: Date, data: PlanData = {}): DayPlan {
     const due = toDate(t.dueDate);
     if (!due || !sameDay(due, date)) continue;
     const timed = hasClockTime(due);
+    const startMin = timed ? due.getHours() * 60 + due.getMinutes() : undefined;
+    const dur = t.effortMin ?? DEFAULT_TASK_DURATION_MIN;
     items.push({
       key: `task-${t.id}`,
       title: t.name,
@@ -48,7 +60,8 @@ export function projectDay(date: Date, data: PlanData = {}): DayPlan {
       kind: "task",
       allDay: !timed,
       start: timed ? hhmm(due) : undefined,
-      startMin: timed ? due.getHours() * 60 + due.getMinutes() : undefined,
+      end: startMin !== undefined ? minToHHMM(startMin + dur) : undefined,
+      startMin,
     });
   }
 
@@ -57,13 +70,15 @@ export function projectDay(date: Date, data: PlanData = {}): DayPlan {
     const when = toDate(e.date)!;
     if (!sameDay(when, date)) continue;
     const timed = hasClockTime(when);
+    const startMin = timed ? when.getHours() * 60 + when.getMinutes() : undefined;
     items.push({
       key: `event-${e.id}`,
       title: e.type || "Event",
       kind: "event",
       allDay: !timed,
       start: timed ? hhmm(when) : undefined,
-      startMin: timed ? when.getHours() * 60 + when.getMinutes() : undefined,
+      end: startMin !== undefined ? minToHHMM(startMin + DEFAULT_TASK_DURATION_MIN) : undefined,
+      startMin,
     });
   }
 

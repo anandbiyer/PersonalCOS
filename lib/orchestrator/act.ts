@@ -1,6 +1,8 @@
 import { ingestText } from "@/lib/capture/ingest";
 import { listTasks, setTaskStatus } from "@/lib/db/repo/tasks";
 import { overdueTasks, dueToday, categorizeWaiting, isOpen } from "@/lib/planner/reminders";
+import { hasClockTime, sameDay, toDate } from "@/lib/planner/dates";
+import { DEFAULT_TASK_DURATION_MIN } from "@/lib/planner/calendar";
 import { consultReply } from "@/lib/consult/consult";
 import { proposePlan, type ProposedPlan } from "./plan";
 import type { Intent } from "./router";
@@ -44,6 +46,36 @@ function tokens(s: string): string[] {
     .filter((w) => w.length >= 3 && !STOP.has(w));
 }
 
+interface TimedRow {
+  id: string;
+  dueDate: Date | string | null;
+  effortMin?: number | null;
+  status: string;
+}
+
+/**
+ * True only when a newly added timed item overlaps ANOTHER open timed task on
+ * the same day — the one case where adding it genuinely reshapes the day and a
+ * re-plan is worth proposing (FR45). A block that simply fits (even inside the
+ * broad "office hours" template) files silently, so we don't surface unrelated
+ * backlog moves on every calendar capture.
+ */
+function overlapsExistingTimedTask(newTask: TimedRow, all: TimedRow[]): boolean {
+  const due = toDate(newTask.dueDate);
+  if (!due || !hasClockTime(due)) return false;
+  const s = due.getHours() * 60 + due.getMinutes();
+  const e = s + (newTask.effortMin ?? DEFAULT_TASK_DURATION_MIN);
+  for (const t of all) {
+    if (t.id === newTask.id || t.status === "completed" || t.status === "cancelled") continue;
+    const d = toDate(t.dueDate);
+    if (!d || !hasClockTime(d) || !sameDay(d, due)) continue;
+    const ts = d.getHours() * 60 + d.getMinutes();
+    const te = ts + (t.effortMin ?? DEFAULT_TASK_DURATION_MIN);
+    if (s < te && ts < e) return true; // half-open interval overlap
+  }
+  return false;
+}
+
 export async function act(
   ownerId: string,
   intent: Intent,
@@ -68,19 +100,24 @@ export async function act(
         },
       ];
 
-      // A calendar change may reshape the day → propose a re-plan (FR45).
-      // Nothing is committed until the manager agrees.
-      if (intent === "calendar") {
-        const plan = await proposePlan(ownerId);
-        if (plan) {
-          actions.push({ type: "plan", label: "Revised plan", plan });
-          return {
-            actions,
-            plan,
-            needsConfirm: true,
-            content:
-              "That reshapes today — here's how I'd refit it, with your study block untouched. Agree and I'll set reminders, or tell me what to change.",
-          };
+      // A calendar change only reshapes the day when the new timed item clashes
+      // with another timed commitment — then, and only then, propose a re-plan
+      // (FR45). A block that simply fits is filed silently, so we never surface
+      // unrelated backlog moves on a routine add.
+      if (intent === "calendar" && r.task.dueDate) {
+        const all = await listTasks(ownerId);
+        if (overlapsExistingTimedTask(r.task, all)) {
+          const plan = await proposePlan(ownerId);
+          if (plan) {
+            actions.push({ type: "plan", label: "Revised plan", plan });
+            return {
+              actions,
+              plan,
+              needsConfirm: true,
+              content:
+                "That overlaps something you already have today — here's how I'd refit it, with your study block untouched. Agree and I'll set reminders, or tell me what to change.",
+            };
+          }
         }
       }
       return { actions };

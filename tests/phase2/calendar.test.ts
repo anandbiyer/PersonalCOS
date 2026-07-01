@@ -32,6 +32,22 @@ describe("[P2] calendar projection (FR28)", () => {
     const found = day.items.find((i) => i.kind === "task");
     expect(found?.title).toBe("Client F walkthrough");
     expect(found?.start).toBe("14:00");
+    // Assumed default block length gives it an end → renders as a range.
+    expect(found?.end).toBe("14:30");
+  });
+
+  it("uses a task's stated duration for the block end (T-FR28-05)", () => {
+    const task: PlanTask = {
+      id: "t2",
+      name: "Focus sprint",
+      portfolio: "personal_dev",
+      status: "planned",
+      dueDate: new Date(2026, 5, 15, 14, 0),
+      effortMin: 90,
+    };
+    const found = projectDay(MON, { tasks: [task] }).items.find((i) => i.kind === "task");
+    expect(found?.start).toBe("14:00");
+    expect(found?.end).toBe("15:30");
   });
 
   it("applies a schedule exception overriding a block (T-FR4-01)", () => {

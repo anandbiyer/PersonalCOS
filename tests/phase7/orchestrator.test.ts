@@ -42,6 +42,31 @@ describe("[P7] orchestrator routing + actions", () => {
     expect((await listTasks(OWNER_A)).length).toBe(before + 1);
   });
 
+  it("a calendar block that fits files silently — no spurious revised plan", async () => {
+    await resetDb();
+    // A timed block tomorrow at 2pm with nothing else on the calendar.
+    const tz = "America/New_York";
+    const r = await act(OWNER_A, "calendar", "Add a 30 min focus block tomorrow at 2pm", tz);
+    expect(r.actions.some((a) => a.type === "calendar")).toBe(true);
+    expect(r.actions.some((a) => a.type === "plan")).toBe(false);
+    expect(r.plan ?? null).toBeNull();
+    expect(r.needsConfirm ?? false).toBe(false);
+  });
+
+  it("a calendar block that clashes with an existing timed task proposes a re-plan", async () => {
+    await resetDb();
+    const tz = "America/New_York";
+    // An existing timed commitment tomorrow at 2pm (the overlap partner)…
+    await act(OWNER_A, "calendar", "Client sync tomorrow at 2pm", tz);
+    // …and an undated open task, so the replan engine actually has something to move.
+    await createTask(OWNER_A, { name: "Draft the board deck", portfolio: "office", source: "text" });
+
+    const r = await act(OWNER_A, "calendar", "Add a 30 min focus block tomorrow at 2:15pm", tz);
+    expect(r.actions.some((a) => a.type === "plan")).toBe(true);
+    expect(r.needsConfirm).toBe(true);
+    expect(r.plan).toBeTruthy();
+  });
+
   it("status reports open / overdue / waiting counts and writes nothing", async () => {
     const before = (await listTasks(OWNER_A)).length;
     const r = await act(OWNER_A, "status", "what's on my plate");

@@ -16,6 +16,7 @@ export interface CreateTaskInput {
   notes?: string | null;
   priority?: "low" | "normal" | "high" | "urgent";
   initiativeId?: string | null;
+  effortMin?: number | null;
 }
 
 export interface ListTasksFilter {
@@ -37,6 +38,7 @@ export async function createTask(ownerId: string, input: CreateTaskInput) {
         notes: input.notes ?? null,
         priority: input.priority ?? "normal",
         initiativeId: input.initiativeId ?? null,
+        effortMin: input.effortMin ?? null,
         status: input.dueDate ? "planned" : "created",
       })
       .returning();
