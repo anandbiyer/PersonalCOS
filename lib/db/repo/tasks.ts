@@ -1,6 +1,6 @@
 import { and, desc, eq } from "drizzle-orm";
 import { withOwner } from "@/lib/db";
-import { tasks, audit, taskStatus, conversationTurns } from "@/lib/db/schema";
+import { tasks, audit, taskStatus, conversationTurns, reminderRules } from "@/lib/db/schema";
 import type { Portfolio, CaptureModality } from "@/lib/ai/types";
 import { embed, embeddingsEnabled } from "@/lib/ai/embeddings";
 import { indexEntity, searchEntityIdsByVector } from "./embeddings";
@@ -17,6 +17,8 @@ export interface CreateTaskInput {
   priority?: "low" | "normal" | "high" | "urgent";
   initiativeId?: string | null;
   effortMin?: number | null;
+  /** FR49: links a calendar-pinned reminder instance to its generator rule. */
+  reminderRuleId?: string | null;
 }
 
 export interface ListTasksFilter {
@@ -39,6 +41,7 @@ export async function createTask(ownerId: string, input: CreateTaskInput) {
         priority: input.priority ?? "normal",
         initiativeId: input.initiativeId ?? null,
         effortMin: input.effortMin ?? null,
+        reminderRuleId: input.reminderRuleId ?? null,
         status: input.dueDate ? "planned" : "created",
       })
       .returning();
@@ -88,10 +91,16 @@ export async function updateTask(ownerId: string, id: string, patch: UpdateTaskI
   });
 }
 
-/** Hard-delete a task — used for in-thread undo of a just-created task (FR43). */
+/** Hard-delete a task — used for in-thread undo of a just-created task (FR43).
+ *  If the task was a calendar-pinned reminder instance (FR49), its generator
+ *  rule is deleted too, so undo never leaves an orphan rule still firing. */
 export async function deleteTask(ownerId: string, id: string) {
   return withOwner(ownerId, async (tx) => {
+    const [prev] = await tx.select().from(tasks).where(eq(tasks.id, id));
     await tx.delete(tasks).where(and(eq(tasks.id, id), eq(tasks.ownerId, ownerId)));
+    if (prev?.reminderRuleId) {
+      await tx.delete(reminderRules).where(eq(reminderRules.id, prev.reminderRuleId));
+    }
   });
 }
 
@@ -213,6 +222,19 @@ export async function setTaskStatus(
         .update(conversationTurns)
         .set({ pruneEligible: true })
         .where(and(eq(conversationTurns.ownerId, ownerId), eq(conversationTurns.refsTaskId, id)));
+    }
+    // FR49 lifecycle: resolving a calendar-pinned reminder instance resolves its
+    // rule too. A ONE-OFF rule is deactivated (no nudge for a done/cancelled
+    // task); a recurring series (monthly/…) survives — only this instance ends
+    // (decision: instance-only, never the series unless asked).
+    if ((status === "completed" || status === "cancelled") && row?.reminderRuleId) {
+      const [linkedRule] = await tx
+        .select()
+        .from(reminderRules)
+        .where(eq(reminderRules.id, row.reminderRuleId));
+      if (linkedRule && linkedRule.schedule === "one_off") {
+        await tx.update(reminderRules).set({ active: false }).where(eq(reminderRules.id, linkedRule.id));
+      }
     }
     return row;
   });

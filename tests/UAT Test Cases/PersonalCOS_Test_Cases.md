@@ -134,7 +134,7 @@ The highest-leverage gaps are all about **wiring existing engines to the orchest
 ### FR1 — Natural-language task capture ✅
 | # | Input | Expected outcome |
 |---|-------|------------------|
-| FR1-T1 | `Remind me to submit the Client F workbook` | A task is created in the ledger with a conversational confirmation; provenance = text; nothing is silently dropped. |
+| FR1-T1 | `Submit the Client F workbook` | A task is created in the ledger with a conversational confirmation; provenance = text; nothing is silently dropped. *(Note: a date-less `Remind me to …` now routes to the reminder slot-fill and asks for a date — FR51 — so the capture case uses a non-reminder phrasing.)* |
 | FR1-T2 | `pick up dry cleaning` (all lowercase, no punctuation) | Task captured and normalized (e.g., "Pick up dry cleaning"); appears in Tasks; classified to Personal Life. |
 
 ### FR2 — Auto classification (portfolio) ✅

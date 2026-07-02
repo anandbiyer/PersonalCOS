@@ -1,9 +1,11 @@
 import { ingestText } from "@/lib/capture/ingest";
-import { listTasks, setTaskStatus, updateTask, createTask } from "@/lib/db/repo/tasks";
+import { listTasks, setTaskStatus, updateTask, createTask, indexTask } from "@/lib/db/repo/tasks";
 import { createReminderRule } from "@/lib/db/repo/reminders";
 import { createException } from "@/lib/db/repo/exceptions";
-import { parseReminder } from "@/lib/reminders/parse";
-import { extractDueDate } from "@/lib/capture/extract-date";
+import { classifyCapture } from "@/lib/ai/classify";
+import { parseReminder, reminderSubject } from "@/lib/reminders/parse";
+import { extractDueDate, extractDurationMin } from "@/lib/capture/extract-date";
+import { setPendingReminder } from "@/lib/memory/pending-reminder";
 import { overdueTasks, dueToday, categorizeWaiting, isOpen } from "@/lib/planner/reminders";
 import { deferPastQuietHours } from "@/lib/planner/quiet-hours";
 import { hasClockTime, sameDay, toDate } from "@/lib/planner/dates";
@@ -12,6 +14,32 @@ import { matchTemplateBlock, blockDurationMin } from "@/lib/planner/template";
 import { consultReply } from "@/lib/consult/consult";
 import { proposePlan, type ProposedPlan } from "./plan";
 import type { Intent } from "./router";
+
+/**
+ * Materialize a calendar-pinned reminder instance (FR49): a dated task at the
+ * reminder's intended time, linked to its rule. Unlike the capture path this is
+ * never conversation-gated (a reminder always files) and the due time is the
+ * reminder instant itself (20:30 default), so the calendar and the nudge agree.
+ */
+async function materializeReminderTask(
+  ownerId: string,
+  ruleId: string,
+  subject: string,
+  message: string,
+  dueDate: Date,
+) {
+  const classification = await classifyCapture(message);
+  const task = await createTask(ownerId, {
+    name: subject || classification.title,
+    portfolio: classification.portfolio,
+    source: "text",
+    dueDate,
+    effortMin: extractDurationMin(message),
+    reminderRuleId: ruleId,
+  });
+  await indexTask(ownerId, task.id, task.name);
+  return task;
+}
 
 /** Friendly local rendering of a fire time for the reminder action card. */
 function fmtWhen(d: Date, tz?: string): string {
@@ -184,60 +212,62 @@ export async function act(
     case "reminder": {
       const parsed = parseReminder(message, new Date(), tz);
       if (!parsed) {
-        // No schedulable time/recurrence → treat as a normal capture so the
-        // intent is never a dead end ("remind me to review the deck").
-        const r = await ingestText(ownerId, message, "text", tz);
-        if (r.filed && r.task) {
-          return {
-            actions: [
-              {
-                type: "task_created",
-                label: `✓ Task created: ${r.task.name}`,
-                undo: { kind: "delete_task", id: r.task.id },
-              },
-            ],
-          };
-        }
-        const c = await consultReply(ownerId, [{ role: "user", content: message }]);
-        return { actions: [{ type: "noop", label: "" }], content: c.reply };
+        // FR51: never file a date-less reminder. Remember what to remind about
+        // and ASK for a date; next turn's answer completes it via
+        // orchestrator/pending.tryCompletePendingReminder. This is a required
+        // disambiguation, not a speculative follow-up.
+        const subject = reminderSubject(message);
+        await setPendingReminder(ownerId, { subject, message });
+        return {
+          actions: [{ type: "noop", label: "" }],
+          content: `Sure — when should I remind you about "${subject}"? Tell me a date (e.g. "the 15th", "next Friday", or "the last day of every month").`,
+        };
       }
 
-      const actions: OrchestratorAction[] = [];
-      let fireAt = parsed.nextFire;
-
-      if (!parsed.recurring) {
-        // One-off: file the underlying to-do so it lands on the ledger/calendar…
-        const r = await ingestText(ownerId, message, "text", tz);
-        if (r.filed && r.task) {
-          actions.push({
-            type: "calendar",
-            label: `📅 Added: ${r.task.name}`,
-            undo: { kind: "delete_task", id: r.task.id },
-          });
-        }
-        // …and push the nudge out of quiet hours so it isn't silently dropped (FR6).
-        fireAt = deferPastQuietHours(parsed.nextFire);
+      // Ambient nudges (interval / daily) are not calendar commitments — a rule
+      // only, no ledger task. Pinning "stretch every 2h" onto the calendar would
+      // be noise; the nudge fires from the rule alone.
+      if (parsed.schedule === "every_n_hours" || parsed.schedule === "daily") {
+        await createReminderRule(ownerId, {
+          target: parsed.subject,
+          schedule: parsed.schedule,
+          scheduleConfig: parsed.scheduleConfig ?? undefined,
+          nextFire: parsed.nextFire,
+        });
+        const when = parsed.schedule === "every_n_hours" ? `every ${parsed.scheduleConfig?.hours}h` : "every day";
+        return {
+          actions: [{ type: "reminder", label: `⏰ Reminder set: ${parsed.subject} — ${when}` }],
+        };
       }
 
-      await createReminderRule(ownerId, {
+      // Calendar-pinned reminders (FR49): one_off + monthly. Create the rule,
+      // then a linked dated task at the INTENDED time so it lands on the
+      // calendar. A one-off nudge fires out of quiet hours (FR6); the task keeps
+      // the intended time so the calendar shows when, not when-it-was-deferred-to.
+      const fireAt =
+        parsed.schedule === "one_off" ? deferPastQuietHours(parsed.nextFire) : parsed.nextFire;
+      const rule = await createReminderRule(ownerId, {
         target: parsed.subject,
         schedule: parsed.schedule,
         scheduleConfig: parsed.scheduleConfig ?? undefined,
         nextFire: fireAt,
       });
+      const task = await materializeReminderTask(ownerId, rule.id, parsed.subject, message, parsed.nextFire);
 
-      const deferred = !parsed.recurring && fireAt.getTime() !== parsed.nextFire.getTime();
-      const when = parsed.recurring
-        ? parsed.schedule === "every_n_hours"
-          ? `every ${parsed.scheduleConfig?.hours}h`
-          : "every day"
-        : fmtWhen(fireAt, tz);
-      actions.push({
-        type: "reminder",
-        label: `⏰ Reminder set${deferred ? " (deferred past quiet hours)" : ""}: ${parsed.subject} — ${when}`,
-      });
+      const deferred = parsed.schedule === "one_off" && fireAt.getTime() !== parsed.nextFire.getTime();
+      const when = parsed.schedule === "monthly" ? "last day of each month" : fmtWhen(parsed.nextFire, tz);
       return {
-        actions,
+        actions: [
+          {
+            type: "calendar",
+            label: `📅 Added: ${task.name} — ${fmtWhen(parsed.nextFire, tz)}`,
+            undo: { kind: "delete_task", id: task.id },
+          },
+          {
+            type: "reminder",
+            label: `⏰ Reminder set${deferred ? " (deferred past quiet hours)" : ""}: ${parsed.subject} — ${when}`,
+          },
+        ],
         content: deferred
           ? "That lands inside quiet hours (21:00–06:00), so I set the nudge for 06:00 instead."
           : undefined,

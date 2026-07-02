@@ -1,0 +1,2 @@
+ALTER TABLE "tasks" ADD COLUMN "reminder_rule_id" uuid;--> statement-breakpoint
+ALTER TABLE "tasks" ADD CONSTRAINT "tasks_reminder_rule_id_reminder_rules_id_fk" FOREIGN KEY ("reminder_rule_id") REFERENCES "public"."reminder_rules"("id") ON DELETE set null ON UPDATE no action;

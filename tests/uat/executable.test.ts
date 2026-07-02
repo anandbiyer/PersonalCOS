@@ -60,7 +60,9 @@ describe("UAT ✅ executable cases", () => {
   // ---- FR1 Natural-language capture ----
   it("FR1-T1 files a task from a natural request", async () => {
     await resetDb();
-    const r = await chat(OWNER_A, "Remind me to submit the Client F workbook");
+    // A plain capture (no "remind me" — a date-less reminder now asks for a date
+    // under FR51, so the capture case uses a non-reminder phrasing).
+    const r = await chat(OWNER_A, "Submit the Client F workbook");
     const tasks = await listTasks(OWNER_A);
     const ok = tasks.length === 1;
     rec("FR1-T1", ok, `intent=${r.intent} task="${tasks[0]?.name}" reply="${r.reply.slice(0, 60)}"`);

@@ -34,6 +34,14 @@ const WEEKDAYS: Record<string, number> = {
 /** Default deadline time for date-only captures: 9pm (end-of-day reminder). */
 export const DEFAULT_DUE_MINUTES = 21 * 60;
 
+/**
+ * Default time for a date-only *reminder* (FR50): 20:30. Deliberately just
+ * before the 21:00 quiet-hours boundary (see lib/planner/quiet-hours) so the
+ * nudge fires that evening instead of being deferred to the next morning. The
+ * calendar due-time and the notification fire-time share this value.
+ */
+export const REMINDER_DEFAULT_MINUTES = 20 * 60 + 30;
+
 type YMD = { y: number; mo: number; d: number }; // mo is 1-based
 
 /** Wall-clock parts of an instant as seen in `tz`. */
@@ -80,6 +88,22 @@ function nextDayOfMonth(today: YMD, day: number): YMD {
   }
   const daysInMonth = new Date(Date.UTC(y, mo, 0)).getUTCDate();
   return { y, mo, d: Math.min(day, daysInMonth) };
+}
+
+/** Add `n` calendar months to a YMD, keeping the day-of-month (callers that want
+ *  the last day overwrite `d` via lastDayOfMonthYMD). */
+function addMonthsYMD(b: YMD, n: number): YMD {
+  const idx = b.mo - 1 + n; // 0-based month index, may go negative / past 11
+  const y = b.y + Math.floor(idx / 12);
+  const mo = ((idx % 12) + 12) % 12 + 1; // wrap to 1..12
+  return { y, mo, d: b.d };
+}
+
+/** Last calendar day of a YMD's month (leap-safe: 28/29/30/31). */
+function lastDayOfMonthYMD(b: YMD): YMD {
+  // Date.UTC(y, mo, 0) = day 0 of 0-based month `mo` = last day of 1-based `mo`.
+  const d = new Date(Date.UTC(b.y, b.mo, 0)).getUTCDate();
+  return { y: b.y, mo: b.mo, d };
 }
 
 /** Minutes-of-day for a recognised clock time, else null. Requires am/pm or
@@ -168,6 +192,33 @@ export function extractDurationMin(text: string): number | null {
 
 /** Resolve a calendar date (in the user's tz) from the text, else null. */
 function parseDate(t: string, today: YMD): YMD | null {
+  // FR50 relative reminder grammar (also usable in general capture). Checked
+  // FIRST so a phrase like "two weeks from today" isn't hijacked by the bare
+  // "today" branch below. These resolve DATE-ONLY; the caller applies the
+  // explicit-or-default time. The recurring "…every month" case is handled
+  // upstream in lib/reminders/parse.ts; here it degrades to a one-off last day
+  // of this month for plain capture.
+  const lom =
+    t.match(/\blast day of (?:the |this |every )?month\b/) ||
+    t.match(/\blast day of next month\b/) ||
+    t.match(/\bend of (?:the |this )?month\b/) ||
+    t.match(/\bmonth[-\s]?end\b/);
+  if (lom) {
+    const base = /next month/.test(lom[0]) ? addMonthsYMD(today, 1) : today;
+    return lastDayOfMonthYMD(base);
+  }
+  // "last day of the/this week" → Sunday. The calendar week is Monday-anchored
+  // (planner/dates.startOfWeek), so its last day is Sunday; derived from the
+  // weekday rather than hard-coded to a date. If today IS Sunday, roll to next.
+  if (/\b(?:last day|end) of (?:the |this )?week\b/.test(t)) {
+    const shift = (0 - weekdayOfYMD(today) + 7) % 7; // 0 = Sunday
+    return addDaysYMD(today, shift === 0 ? 7 : shift);
+  }
+  // "(in a) fortnight" / "two weeks from now|today" → today + 14 days.
+  if (/\bfortnight\b/.test(t) || /\btwo\s+weeks?\s+from\s+(?:now|today)\b/.test(t)) {
+    return addDaysYMD(today, 14);
+  }
+
   if (/\bday after tomorrow\b/.test(t)) return addDaysYMD(today, 2);
   if (/\btomorrow\b/.test(t)) return addDaysYMD(today, 1);
   if (/\b(today|tonight|this evening)\b/.test(t)) return today;
@@ -217,7 +268,12 @@ function parseDate(t: string, today: YMD): YMD | null {
  * Time-only inputs ("7-8pm") resolve to today at that time; date-only inputs
  * resolve to that day at the 9pm default. The returned Date is a UTC instant.
  */
-export function extractDueDate(text: string, now: Date, tz = "UTC"): Date | null {
+export function extractDueDate(
+  text: string,
+  now: Date,
+  tz = "UTC",
+  defaultMinutes: number = DEFAULT_DUE_MINUTES,
+): Date | null {
   const t = text.toLowerCase();
   const tp = partsInTz(now, tz);
   const today: YMD = { y: tp.y, mo: tp.mo, d: tp.d };
@@ -226,8 +282,34 @@ export function extractDueDate(text: string, now: Date, tz = "UTC"): Date | null
   if (date === null && minutes === null) return null;
 
   const target = date ?? today;
-  const mins = minutes ?? DEFAULT_DUE_MINUTES;
+  const mins = minutes ?? defaultMinutes;
   return zonedWallToUtc(target.y, target.mo, target.d, Math.floor(mins / 60), mins % 60, tz);
+}
+
+/**
+ * UTC instant for the last calendar day of the (current + monthOffset) month,
+ * in `tz`, at the clock time named in `text` (else the reminder 20:30 default).
+ * Used by the monthly-recurring reminder path (FR50): offset 0 for the current
+ * month's instance, offset 1 to roll to next month when this one has passed.
+ */
+export function lastDayOfMonthDue(ref: Date, tz: string, monthOffset: number, text: string): Date {
+  const p = partsInTz(ref, tz);
+  const base = addMonthsYMD({ y: p.y, mo: p.mo, d: 1 }, monthOffset);
+  const ld = lastDayOfMonthYMD(base);
+  const mins = parseTime(text.toLowerCase()) ?? REMINDER_DEFAULT_MINUTES;
+  return zonedWallToUtc(ld.y, ld.mo, ld.d, Math.floor(mins / 60), mins % 60, tz);
+}
+
+/**
+ * Next fire for a `monthly` reminder rule (FR50): the last day of the month
+ * AFTER `from`'s local month, preserving `from`'s local clock time. tz-aware so
+ * the "last day" boundary and the wall-clock time are correct even when the
+ * stored UTC instant falls in a different calendar month than the local one.
+ */
+export function monthlyLastDayNextFire(from: Date, tz: string): Date {
+  const p = partsInTz(from, tz);
+  const ld = lastDayOfMonthYMD(addMonthsYMD({ y: p.y, mo: p.mo, d: 1 }, 1));
+  return zonedWallToUtc(ld.y, ld.mo, ld.d, p.hour, p.minute, tz);
 }
 
 /**
@@ -268,6 +350,16 @@ export function cleanTaskTitle(text: string): string {
   s = s.replace(new RegExp(`\\b\\d{1,2}(?:st|nd|rd|th)?\\s+(?:of\\s+)?(?:${monthAlt})\\b`, "gi"), " ");
   s = s.replace(/\b(?:on|by)?\s*the\s+\d{1,2}(?:st|nd|rd|th)\b/gi, " ");
   s = s.replace(/\b\d{4}-\d{2}-\d{2}\b/g, " ");
+
+  // FR50 relative phrases (last day of month/week, fortnight). A leading
+  // "due (on|by)" is consumed too so "… due on last day of every month" → "…".
+  s = s.replace(
+    /\b(?:due\s+)?(?:on|by)?\s*(?:last day of (?:the |this |every |next )?month|end of (?:the |this )?month|month[-\s]?end)\b/gi,
+    " ",
+  );
+  s = s.replace(/\b(?:due\s+)?(?:on|by)?\s*(?:last day|end) of (?:the |this )?week\b/gi, " ");
+  s = s.replace(/\b(?:in\s+a\s+)?fortnight\b/gi, " ");
+  s = s.replace(/\btwo\s+weeks?\s+from\s+(?:now|today)\b/gi, " ");
 
   // Collapse and trim dangling connectives left at the edges.
   s = s.replace(/\s{2,}/g, " ").trim();

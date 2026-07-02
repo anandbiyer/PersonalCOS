@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cronAuthorized } from "@/lib/cron/auth";
-import { listDueReminderRules, markReminderFired } from "@/lib/db/admin";
+import {
+  listDueReminderRules,
+  markReminderFired,
+  materializeMonthlyNextInstance,
+} from "@/lib/db/admin";
 import { computeNextFire, type ReminderScheduleKind } from "@/lib/reminders/schedule";
 import { dispatch } from "@/lib/notify";
 
@@ -16,6 +20,11 @@ export async function GET(req: NextRequest) {
     await dispatch({ ownerId: rule.ownerId, kind: "reminder", message: rule.target, at: now });
     const next = computeNextFire(rule.schedule as ReminderScheduleKind, rule.scheduleConfig, now);
     await markReminderFired(rule.id, next);
+    // FR49: a recurring monthly reminder pins its NEXT instance onto the calendar
+    // as it rolls forward, so the upcoming month always shows the commitment.
+    if (rule.schedule === "monthly" && next) {
+      await materializeMonthlyNextInstance(rule.id, next);
+    }
   }
   return NextResponse.json({ fired: due.length });
 }

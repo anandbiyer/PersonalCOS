@@ -1,0 +1,1 @@
+ALTER TYPE "public"."reminder_schedule" ADD VALUE 'monthly' BEFORE 'cron';

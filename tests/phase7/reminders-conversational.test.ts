@@ -83,11 +83,12 @@ describe("[P8] conversational reminders", () => {
     // tests/phase2/quiet-hours.test.ts (server-local-time dependent here).
   });
 
-  it("falls back to task capture when no time is given", async () => {
+  it("asks for a date instead of filing a date-less reminder (FR51 slot-fill)", async () => {
     await resetDb();
     const r = await act(OWNER_A, "reminder", "remind me to review the deck", TZ);
-    expect(r.actions.some((a) => a.type === "task_created")).toBe(true);
+    // Nothing filed yet — the COS asks for a date and remembers the subject.
+    expect(r.content).toMatch(/when should i remind you/i);
     expect(await listReminderRules(OWNER_A)).toHaveLength(0);
-    expect(await listTasks(OWNER_A)).toHaveLength(1);
+    expect(await listTasks(OWNER_A)).toHaveLength(0);
   });
 });

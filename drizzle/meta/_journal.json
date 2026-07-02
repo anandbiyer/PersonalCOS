@@ -22,6 +22,20 @@
       "when": 1782845992891,
       "tag": "0002_aromatic_azazel",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1782943494212,
+      "tag": "0003_faulty_butterfly",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1782946208218,
+      "tag": "0004_faithful_shard",
+      "breakpoints": true
     }
   ]
 }

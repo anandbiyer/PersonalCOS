@@ -4,6 +4,11 @@ import { memoryFacts } from "@/lib/db/schema";
 
 export type FactKind = "preference" | "commitment" | "fact";
 
+/** Subjects with this prefix are internal plumbing (e.g. the FR51 pending-
+ *  reminder slot), not durable knowledge — hidden from context + the Memory
+ *  view by default. Only callers passing `includeInternal` see them. */
+export const INTERNAL_SUBJECT_PREFIX = "sys:";
+
 export interface AddFactInput {
   kind: FactKind;
   subject?: string | null;
@@ -59,15 +64,20 @@ export async function deleteFact(ownerId: string, id: string) {
 
 export async function listFacts(
   ownerId: string,
-  opts: { activeOnly?: boolean } = {},
+  opts: { activeOnly?: boolean; includeInternal?: boolean } = {},
 ) {
   return withOwner(ownerId, async (tx) => {
     const conds = [eq(memoryFacts.ownerId, ownerId)];
     if (opts.activeOnly) conds.push(eq(memoryFacts.active, true));
-    return tx
+    const rows = await tx
       .select()
       .from(memoryFacts)
       .where(and(...conds))
       .orderBy(desc(memoryFacts.updatedAt));
+    // Internal/system facts (sys:… subjects) are plumbing, not durable knowledge
+    // — excluded from context assembly + the Memory view unless asked for.
+    return opts.includeInternal
+      ? rows
+      : rows.filter((r) => !r.subject?.startsWith(INTERNAL_SUBJECT_PREFIX));
   });
 }

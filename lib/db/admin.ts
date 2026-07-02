@@ -119,3 +119,26 @@ export async function markReminderFired(id: string, nextFire: Date | null): Prom
     SET next_fire = ${nextFire}, active = ${nextFire !== null}
     WHERE id = ${id}`;
 }
+
+/**
+ * FR49 roll-forward: when a monthly reminder fires, materialize its NEXT
+ * calendar instance as a dated task — copying name/portfolio/effort from the
+ * rule's most recent instance so the new pill is classified without re-running
+ * AI in cron. Idempotent (skips if an instance for this rule+due already
+ * exists). Admin-side: the owner is taken from the existing instance, so the
+ * insert stays honestly tenant-scoped even without a user session.
+ */
+export async function materializeMonthlyNextInstance(ruleId: string, dueDate: Date): Promise<void> {
+  const [src] = await adminClient()<
+    { owner_id: string; name: string; portfolio: string; effort_min: number | null }[]
+  >`SELECT owner_id, name, portfolio, effort_min
+      FROM tasks WHERE reminder_rule_id = ${ruleId}
+      ORDER BY due_date DESC NULLS LAST LIMIT 1`;
+  if (!src) return; // no prior instance to base the next one on
+  const [dup] = await adminClient()<{ id: string }[]>`
+    SELECT id FROM tasks WHERE reminder_rule_id = ${ruleId} AND due_date = ${dueDate} LIMIT 1`;
+  if (dup) return; // already materialized (cron retry) — idempotent
+  await adminClient()`
+    INSERT INTO tasks (owner_id, name, portfolio, due_date, effort_min, status, source, reminder_rule_id)
+    VALUES (${src.owner_id}, ${src.name}, ${src.portfolio}, ${dueDate}, ${src.effort_min}, 'planned', 'text', ${ruleId})`;
+}

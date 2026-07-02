@@ -84,6 +84,7 @@ export const reminderSchedule = pgEnum("reminder_schedule", [
   "one_off",
   "daily",
   "every_n_hours",
+  "monthly", // FR50: recurring on the last day of each month
   "cron",
 ]);
 
@@ -187,6 +188,12 @@ export const tasks = pgTable("tasks", {
   owner: text("owner"),
   source: captureSource("source").notNull().default("text"),
   notes: text("notes"),
+  // FR49: a calendar-pinned reminder instance links back to its generator rule
+  // so lifecycle stays coherent (undo removes both; completing a monthly
+  // instance keeps the series; a one-off completion deactivates the rule).
+  reminderRuleId: uuid("reminder_rule_id").references(() => reminderRules.id, {
+    onDelete: "set null",
+  }),
   completedAt: timestamp("completed_at", { withTimezone: true }),
   // Completed one-off tasks archive out of the active/searchable set (FR47
   // §4.6.1) — archive ≠ delete; the row + audit are retained.
