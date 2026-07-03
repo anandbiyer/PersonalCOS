@@ -5,7 +5,8 @@ import { users } from "@/lib/db/schema";
 import { listTasks } from "@/lib/db/repo/tasks";
 import { listEvents } from "@/lib/db/repo/events";
 import { listExceptions } from "@/lib/db/repo/exceptions";
-import { lastTurns } from "@/lib/db/repo/turns";
+import { turnsForConversation } from "@/lib/db/repo/turns";
+import { currentConversation } from "@/lib/db/repo/conversations";
 import { openDaySession } from "@/lib/session/lifecycle";
 import { addDays, endOfDay, startOfDay } from "@/lib/planner/dates";
 import { SessionView } from "@/components/session-view";
@@ -34,7 +35,12 @@ export default async function HomePage() {
   const tasks = await listTasks(ownerId);
   const events = await listEvents(ownerId, from, to);
   const exceptions = await listExceptions(ownerId, from, to);
-  const turns = await lastTurns(ownerId, 50);
+  // FR53: the inline thread is scoped to TODAY's day-session, so a new day opens
+  // a fresh chat and the prior day's dialogue moves out of the inline view
+  // (reachable via Memory / day-divided scrollback). Falls back to empty when no
+  // session exists yet.
+  const conv = await currentConversation(ownerId);
+  const turns = conv ? await turnsForConversation(ownerId, conv.id, 200) : [];
 
   return (
     <SessionView

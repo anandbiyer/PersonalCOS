@@ -42,6 +42,29 @@ export async function lastTurns(ownerId: string, n = 6) {
   });
 }
 
+/**
+ * Most recent N turns of ONE conversation (day-session), oldest-first. This is
+ * the inline home thread (FR53): scoping to the current day's conversation is
+ * what makes a new day start a FRESH chat — prior days belong to prior
+ * conversations and drop out of the inline view.
+ */
+export async function turnsForConversation(ownerId: string, conversationId: string, n = 200) {
+  return withOwner(ownerId, async (tx) => {
+    const rows = await tx
+      .select()
+      .from(conversationTurns)
+      .where(
+        and(
+          eq(conversationTurns.ownerId, ownerId),
+          eq(conversationTurns.conversationId, conversationId),
+        ),
+      )
+      .orderBy(desc(conversationTurns.createdAt))
+      .limit(n);
+    return rows.reverse();
+  });
+}
+
 /** Completion-triggered early pruning (FR47): flag turns referencing a
  *  completed task so the retention sweep can drop them ahead of the window. */
 export async function markTurnsPruneEligible(ownerId: string, taskId: string) {

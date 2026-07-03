@@ -59,7 +59,7 @@ export async function adminUpsertUserFromClerk(input: {
     VALUES (
       ${input.clerkId},
       ${input.displayName},
-      ${input.timezone ?? "Asia/Kolkata"},
+      ${input.timezone ?? "America/New_York"},
       ${input.theme ?? "aurora"}
     )
     ON CONFLICT (clerk_id) DO UPDATE SET

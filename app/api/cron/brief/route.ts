@@ -10,6 +10,8 @@ import { categorizeWaiting, dueToday, overdueTasks } from "@/lib/planner/reminde
 import { startOfDay, endOfDay } from "@/lib/planner/dates";
 import { composeBrief } from "@/lib/brief/compose";
 import { openDaySession } from "@/lib/session/lifecycle";
+import { currentConversation } from "@/lib/db/repo/conversations";
+import { appendTurn, turnsForConversation } from "@/lib/db/repo/turns";
 import { dispatch } from "@/lib/notify";
 
 // cron/brief — 04:25 daily: open the day-session (FR44) + synthesise & push the
@@ -37,6 +39,21 @@ export async function GET(req: NextRequest) {
       stalled,
     });
     const replanNote = replanned.applied > 0 ? ` Replanned ${replanned.applied} item(s).` : "";
+
+    // FR44/§3.4: persist the brief as the day's OPENING turn so the fresh thread
+    // has a real, recoverable first message (not only a client-side greeting).
+    // Guard on a still-empty session → exactly one opening per day, idempotent on
+    // cron retry, and never injected into a conversation already in progress.
+    const conv = await currentConversation(ownerId);
+    if (conv && (await turnsForConversation(ownerId, conv.id, 1)).length === 0) {
+      await appendTurn(ownerId, {
+        conversationId: conv.id,
+        role: "cos",
+        text: `${brief.prose}${replanNote}`,
+        intent: "status",
+      });
+    }
+
     return dispatch({ ownerId, kind: "brief", message: `${brief.greeting}. ${brief.prose}${replanNote}` });
   });
 }

@@ -32,6 +32,23 @@ export function sameDay(a: Date, b: Date): boolean {
   return startOfDay(a).getTime() === startOfDay(b).getTime();
 }
 
+/**
+ * True when two instants fall on the same CALENDAR DAY in the given IANA tz
+ * (FR54). Unlike `sameDay` (which uses the server's local/UTC day), this lets
+ * the session-day boundary roll at the owner's local midnight rather than at
+ * 00:00 UTC. `en-CA` yields an YYYY-MM-DD string, so a plain compare suffices.
+ */
+export function sameDayInTz(a: Date, b: Date, tz: string): boolean {
+  const day = (d: Date) =>
+    new Intl.DateTimeFormat("en-CA", {
+      timeZone: tz,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(d);
+  return day(a) === day(b);
+}
+
 export function isWeekend(d: Date): boolean {
   const g = d.getDay();
   return g === 0 || g === 6;

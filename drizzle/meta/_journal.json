@@ -36,6 +36,13 @@
       "when": 1782946208218,
       "tag": "0004_faithful_shard",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1783046389191,
+      "tag": "0005_gifted_vision",
+      "breakpoints": true
     }
   ]
 }

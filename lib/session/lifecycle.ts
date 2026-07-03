@@ -1,7 +1,19 @@
+import { eq } from "drizzle-orm";
+import { withOwner } from "@/lib/db";
+import { users } from "@/lib/db/schema";
 import { currentConversation, openConversation, setConversationPhase } from "@/lib/db/repo/conversations";
 import { appendTurn } from "@/lib/db/repo/turns";
 import { finalizeDaySummary } from "@/lib/memory/summary";
-import { sameDay, toDate } from "@/lib/planner/dates";
+import { sameDayInTz, toDate } from "@/lib/planner/dates";
+
+/** The owner's home timezone (FR54) — governs the session-day boundary so a new
+ *  day rolls at local midnight, not 00:00 UTC. Falls back to UTC if unset. */
+async function ownerTimezone(ownerId: string): Promise<string> {
+  return withOwner(ownerId, async (tx) => {
+    const [u] = await tx.select({ tz: users.timezone }).from(users).where(eq(users.id, ownerId));
+    return u?.tz || "UTC";
+  });
+}
 
 /**
  * Daily working session lifecycle (FR44): Open → Work → Adapt → Advise → Close.
@@ -20,7 +32,12 @@ import { sameDay, toDate } from "@/lib/planner/dates";
 export async function openDaySession(ownerId: string): Promise<boolean> {
   const now = new Date();
   const conv = await currentConversation(ownerId);
-  if (conv && sameDay(toDate(conv.startedAt)!, now)) return false; // already opened today
+  if (conv) {
+    // FR54: "today" is the owner's local calendar day, so the fresh session
+    // rolls at their local midnight rather than at 00:00 UTC (= 20:00 EDT).
+    const tz = await ownerTimezone(ownerId);
+    if (sameDayInTz(toDate(conv.startedAt)!, now, tz)) return false; // already opened today
+  }
   await openConversation(ownerId);
   return true;
 }

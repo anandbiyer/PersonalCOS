@@ -133,7 +133,7 @@ export const users = pgTable("users", {
   displayName: text("display_name").notNull(),
   // { webPush?, pushover?, telegram?, email? } — per-user notification channels
   channels: jsonb("channels").$type<Record<string, unknown>>().default({}).notNull(),
-  timezone: text("timezone").notNull().default("Asia/Kolkata"),
+  timezone: text("timezone").notNull().default("America/New_York"),
   theme: themeName("theme").notNull().default("aurora"),
   // Conversation-memory retention windows (FR47 §4.6.1). Verbatim in days;
   // the other tiers in months. Durable knowledge is never timer-expired.

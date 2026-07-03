@@ -33,7 +33,7 @@ async function main() {
   try {
     await asOwner(sql, USER_A, async (tx) => {
       await tx`INSERT INTO users (id, display_name, theme, timezone)
-               VALUES (${USER_A}, 'Anand', 'aurora', 'Asia/Kolkata')
+               VALUES (${USER_A}, 'Anand', 'aurora', 'America/New_York')
                ON CONFLICT (id) DO NOTHING`;
       await tx`INSERT INTO tasks (owner_id, name, portfolio, status, source)
                VALUES (${USER_A}, 'Client F — column inventory', 'office', 'planned', 'text')`;
@@ -44,7 +44,7 @@ async function main() {
 
     await asOwner(sql, USER_B, async (tx) => {
       await tx`INSERT INTO users (id, display_name, theme, timezone)
-               VALUES (${USER_B}, 'Spouse', 'sunrise', 'Asia/Kolkata')
+               VALUES (${USER_B}, 'Spouse', 'sunrise', 'America/New_York')
                ON CONFLICT (id) DO NOTHING`;
       await tx`INSERT INTO tasks (owner_id, name, portfolio, status, source)
                VALUES (${USER_B}, 'Plan Goa vacation', 'personal_life', 'planned', 'text')`;
