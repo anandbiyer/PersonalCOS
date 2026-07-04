@@ -53,7 +53,7 @@ export async function POST(req: NextRequest) {
     intent = route.intent;
     result = await act(ownerId, intent, message, tz);
   }
-  const reply = await composeReply(message, intent, result);
+  const reply = await composeReply(message, intent, result, context);
 
   await appendTurn(ownerId, {
     conversationId: conv.id,

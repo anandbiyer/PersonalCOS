@@ -30,10 +30,19 @@ export function anthropic(): Anthropic {
 }
 
 /**
- * Routing/memory kinds (FR43/46): route, summarize, extract are cheap
- * orchestration passes and run on Haiku; reasoning stays on Opus.
+ * Model kinds (FR43/46). Two tiers by whether the pass is USER-FACING judgment
+ * or invisible background bookkeeping:
+ *   • Opus (reasoning): high-judgment + conversational quality — advisory/vision
+ *     (`reasoning`), intent routing (`route`), the spoken reply (`route`), and
+ *     capture classification (`classify`). These drive the "feels like Claude
+ *     chat" experience and the correctness of what gets filed, so they run on
+ *     the strongest model — fewer mis-routes, richer replies.
+ *   • Haiku (fast): cheap, non-user-visible memory passes — `summarize`,
+ *     `extract`, and any generic `fast` call. No quality reason to pay more.
  */
-export type ModelKind = "reasoning" | "fast" | "route" | "summarize" | "extract";
+export type ModelKind = "reasoning" | "fast" | "route" | "classify" | "summarize" | "extract";
+
+const OPUS_KINDS = new Set<ModelKind>(["reasoning", "route", "classify"]);
 
 /**
  * Pick a model for a portfolio. Office stays on the trusted first-party API;
@@ -44,6 +53,5 @@ export function modelFor(
   portfolio: Portfolio | undefined,
   kind: ModelKind = "fast",
 ): string {
-  // reasoning → Opus; everything else (fast/route/summarize/extract) → Haiku.
-  return kind === "reasoning" ? MODELS.reasoning : MODELS.fast;
+  return OPUS_KINDS.has(kind) ? MODELS.reasoning : MODELS.fast;
 }

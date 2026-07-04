@@ -68,7 +68,7 @@ export async function routeIntent(message: string, context = ""): Promise<RouteR
   try {
     const msg = await anthropic().messages.create({
       model: modelFor(undefined, "route"),
-      max_tokens: 64,
+      max_tokens: 128,
       system:
         "You are the intent router for a conversational chief of staff. Classify the manager's " +
         "message into exactly one intent: reminder (asking to be reminded / nudged at a time or on a " +

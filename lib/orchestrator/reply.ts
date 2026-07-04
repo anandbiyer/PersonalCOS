@@ -5,13 +5,13 @@ import type { Intent } from "./router";
 
 /**
  * Compose the COS's natural-language reply (FR43). When the action already
- * carries content (status answer / advice / chitchat), that IS the reply.
- * Otherwise we confirm-and-stop: a short, grounded acknowledgement with NO
- * leading follow-up question — a chief of staff files it and reports, it does
- * not interrogate. Deterministic offline (hermetic), or a 1-sentence Haiku
- * phrasing when keyed. Asking "Should I…?/Anything else?" here opens a
- * conversational branch the single-turn router can't reliably answer, so we
- * don't. (See CLAUDE.md / the orchestrator being single-turn.)
+ * carries content (status answer / advice / chitchat / a clarifying ask), that
+ * IS the reply. Otherwise we speak like a capable chief of staff about what we
+ * just did — grounded in the assembled memory context so the reply reads like
+ * it knows the manager, not a form receipt.
+ *
+ * Runs on the reasoning model (Opus) for Claude-quality conversation; degrades
+ * to a deterministic one-liner offline (hermetic tests + a hard cost floor).
  */
 function deterministicReply(intent: Intent): string {
   switch (intent) {
@@ -30,8 +30,10 @@ export async function composeReply(
   message: string,
   intent: Intent,
   result: ActResult,
+  context = "",
 ): Promise<string> {
-  // status / question / noop already carry the spoken content.
+  // status / question / advice / chitchat / clarifying asks already carry the
+  // spoken content.
   if (result.content) return result.content;
 
   const base = deterministicReply(intent);
@@ -40,17 +42,31 @@ export async function composeReply(
     const did = result.actions.map((a) => a.label).filter(Boolean).join("; ");
     const msg = await anthropic().messages.create({
       model: modelFor(undefined, "route"),
-      max_tokens: 120,
+      max_tokens: 500,
       system:
-        "You are a calm, concise chief of staff replying in an ongoing chat. Given the manager's " +
-        "message and what you just did, reply with ONE short sentence that confirms what you did. " +
-        "Do NOT ask a follow-up question, do NOT offer further help, and state ONLY what you " +
-        "actually did — never claim an action you did not take. No preamble, no lists. Office " +
-        "topics use coded references.",
-      messages: [{ role: "user", content: `Manager said: "${message}"\nWhat you did: ${did}` }],
+        "You are the manager's Chief of Staff, replying inside an ongoing daily chat. Talk like a " +
+        "sharp, warm, trusted colleague — natural and conversational, not a robot printing a receipt. " +
+        "You just handled the manager's message; confirm what you actually did in plain language and, " +
+        "when it's genuinely useful, add one short, relevant observation or a next-step suggestion. " +
+        "Ground everything in the CONTEXT (their plan, open items, waiting-on, known facts and " +
+        "preferences) — reference it naturally when it helps, so the reply feels like it knows them.\n" +
+        "Rules: state ONLY what you truly did — never claim an action (filed, scheduled, reminded) you " +
+        "did not take. Keep it tight: usually one to three sentences; no bullet lists, no preamble, no " +
+        "sign-off. You may ask a clarifying question or offer a next step, but phrase any suggestion so " +
+        "the manager can act on it in a single self-contained reply (e.g. 'tell me a time and I'll set a " +
+        "reminder' — not a yes/no you'd have to remember). Office topics use coded references (Client A).",
+      messages: [
+        {
+          role: "user",
+          content:
+            (context ? `CONTEXT:\n${context}\n\n` : "") +
+            `Manager said: "${message}"\nWhat you just did: ${did || "(nothing to file — this was conversational)"}`,
+        },
+      ],
     });
     const block = msg.content.find((b) => b.type === "text");
-    return block && block.type === "text" ? block.text.trim() : base;
+    const text = block && block.type === "text" ? block.text.trim() : "";
+    return text || base;
   } catch {
     return base;
   }

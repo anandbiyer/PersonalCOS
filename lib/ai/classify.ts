@@ -83,7 +83,7 @@ export async function classifyCapture(text: string): Promise<Classification> {
   try {
     const client = anthropic();
     const msg = await client.messages.create({
-      model: modelFor("office", "fast"),
+      model: modelFor("office", "classify"),
       max_tokens: 256,
       system:
         "You classify a captured note for a personal chief-of-staff ledger. " +
