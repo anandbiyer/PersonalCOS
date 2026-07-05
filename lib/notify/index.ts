@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm";
 import { withOwner } from "@/lib/db";
 import { users, audit } from "@/lib/db/schema";
 import { shouldSuppressNotification } from "@/lib/planner/quiet-hours";
+import { aiOffline } from "@/lib/ai/offline";
 
 /**
  * Per-user notification dispatch (FR6 channel/quiet-hours governance, FR38
@@ -58,12 +59,15 @@ async function sendPushover(userKey: string, text: string): Promise<boolean> {
   const token = process.env.PUSHOVER_TOKEN;
   if (!token || !userKey) return false;
   try {
-    await fetch("https://api.pushover.net/1/messages.json", {
+    // Pushover's API is form-encoded, NOT JSON — a JSON body is silently
+    // rejected. Check res.ok so a 4xx (bad token/user) reports as undelivered
+    // rather than being falsely recorded as sent.
+    const res = await fetch("https://api.pushover.net/1/messages.json", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ token, user: userKey, message: text }),
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ token, user: userKey, message: text }).toString(),
     });
-    return true;
+    return res.ok;
   } catch {
     return false;
   }
@@ -72,11 +76,22 @@ async function sendPushover(userKey: string, text: string): Promise<boolean> {
 /** Try the user's configured channels in priority order; return the channel
  *  that accepted the message, or null if none is configured/enabled. */
 async function deliver(channels: Channels, text: string): Promise<string | null> {
+  // Hermetic mode (AI_OFFLINE, used by the test suite) makes NO external network
+  // calls — dispatch still records the audit receipt, but nothing is sent. This
+  // also keeps tests from firing real Pushover/Telegram pushes via env creds
+  // loaded from .env.local.
+  if (aiOffline()) return null;
+
   if (typeof channels.telegram === "string" && process.env.TELEGRAM_BOT_TOKEN) {
     if (await sendTelegram(channels.telegram, text)) return "telegram";
   }
-  if (typeof channels.pushover === "string" && process.env.PUSHOVER_TOKEN) {
-    if (await sendPushover(channels.pushover, text)) return "pushover";
+  // User key is per-tenant (users.channels.pushover); fall back to the
+  // PUSHOVER_USER env var for single-owner setups where it isn't stored per
+  // user. (Fix #1 — makes the PUSHOVER_USER/PUSHOVER_TOKEN Vercel env work.)
+  const pushoverKey =
+    typeof channels.pushover === "string" ? channels.pushover : process.env.PUSHOVER_USER;
+  if (pushoverKey && process.env.PUSHOVER_TOKEN) {
+    if (await sendPushover(pushoverKey, text)) return "pushover";
   }
   // web-push / email providers wire in here when configured (Phase 4/5).
   return null;
