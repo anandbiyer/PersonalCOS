@@ -153,25 +153,31 @@ function OverdueReviewCard({ items, overflow }: { items: OverdueTriageItem[]; ov
   }
 
   return (
-    <div className="plancard revised">
+    <div className="plancard">
       <div className="ph">
         ⏳ Past due — let&rsquo;s clear these
-        <span className="tagp">{items.length}</span>
+        <span
+          className="tagp"
+          style={{ background: "var(--line)", color: "var(--muted)" }}
+        >
+          {items.length}
+        </span>
       </div>
       {items.map((it) => (
-        <div className="pitem" key={it.id} style={{ flexDirection: "column", alignItems: "stretch", gap: 6 }}>
+        <div className="pitem" key={it.id} style={{ flexDirection: "column", alignItems: "stretch", gap: 8 }}>
           <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
             <span className="ptt">{it.name}</span>
-            <span className="ptm" style={{ color: "var(--muted)" }}>was due {wasDue(it.dueDate)}</span>
+            <span className="ptm" style={{ width: "auto", color: "var(--muted)" }}>was due {wasDue(it.dueDate)}</span>
           </div>
-          <div style={{ display: "flex", gap: 14, flexWrap: "wrap", fontSize: 13 }}>
+          <div style={{ display: "flex", gap: 16, flexWrap: "wrap", alignItems: "center", fontSize: 12.5, color: "var(--muted)" }}>
             {(["done", "reschedule", "drop"] as const).map((opt) => (
-              <label key={opt} style={{ display: "flex", alignItems: "center", gap: 4, cursor: "pointer" }}>
+              <label key={opt} style={{ display: "flex", alignItems: "center", gap: 5, cursor: "pointer", fontWeight: 600 }}>
                 <input
                   type="radio"
                   name={`triage-${it.id}`}
                   checked={choice[it.id] === opt}
                   onChange={() => setChoice((c) => ({ ...c, [it.id]: opt }))}
+                  style={{ accentColor: "var(--office)" }}
                 />
                 {opt === "done" ? "Done" : opt === "reschedule" ? "Reschedule" : "Drop"}
               </label>
@@ -181,7 +187,16 @@ function OverdueReviewCard({ items, overflow }: { items: OverdueTriageItem[]; ov
                 type="datetime-local"
                 value={when[it.id] ?? ""}
                 onChange={(e) => setWhen((w) => ({ ...w, [it.id]: e.target.value }))}
-                style={{ fontSize: 13 }}
+                style={{
+                  fontFamily: "var(--mono)",
+                  fontSize: 12,
+                  color: "var(--ink)",
+                  background: "var(--soft)",
+                  border: "1px solid var(--line)",
+                  borderRadius: 10,
+                  padding: "6px 10px",
+                  outline: "none",
+                }}
               />
             )}
           </div>
