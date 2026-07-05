@@ -22,8 +22,11 @@ export async function GET(req: NextRequest) {
     // FR44: proactively open the day-session record (the greeting is rendered
     // client-side in the thread).
     await openDaySession(ownerId);
-    // FR8: roll missed/unscheduled work forward into capacity once a day.
-    const replanned = await replanOverdue(ownerId, { apply: true });
+    // FR55: overdue items are no longer silently rolled forward — they surface
+    // in the past-due triage card for the manager to resolve (Done/Reschedule/
+    // Drop). We still COMPUTE a proposal (apply:false) for the brief's prose,
+    // but never mutate due dates behind the manager's back.
+    const replanned = await replanOverdue(ownerId, { apply: false });
     const tasks = await listTasks(ownerId);
     const inits = await listInitiatives(ownerId);
     const events = await listEvents(ownerId, startOfDay(now), endOfDay(now));

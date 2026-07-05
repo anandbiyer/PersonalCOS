@@ -194,6 +194,48 @@ export async function replanOverdue(
   return { ...result, applied };
 }
 
+/** FR55 past-due triage: apply Done / Reschedule / Drop to a batch of overdue
+ *  tasks. Each item is audited via the existing repo ops (setTaskStatus /
+ *  updateTask); ids the owner can't see (RLS) resolve to `ok:false`, not an
+ *  error, so one bad row never aborts the batch. Reschedule requires a FUTURE
+ *  date. Per-item (not one transaction) — partial success is reported per id. */
+export interface TriageResolution {
+  id: string;
+  action: "done" | "reschedule" | "drop";
+  dueDate?: Date | null;
+}
+export interface TriageResult {
+  id: string;
+  action: TriageResolution["action"];
+  ok: boolean;
+  error?: string;
+}
+export async function applyTriage(
+  ownerId: string,
+  resolutions: TriageResolution[],
+): Promise<TriageResult[]> {
+  const now = Date.now();
+  const out: TriageResult[] = [];
+  for (const r of resolutions) {
+    if (r.action === "done") {
+      const row = await setTaskStatus(ownerId, r.id, "completed");
+      out.push({ id: r.id, action: r.action, ok: !!row });
+    } else if (r.action === "drop") {
+      const row = await setTaskStatus(ownerId, r.id, "cancelled");
+      out.push({ id: r.id, action: r.action, ok: !!row });
+    } else {
+      // reschedule
+      if (!r.dueDate || r.dueDate.getTime() <= now) {
+        out.push({ id: r.id, action: r.action, ok: false, error: "reschedule needs a future date" });
+        continue;
+      }
+      const row = await updateTask(ownerId, r.id, { dueDate: r.dueDate });
+      out.push({ id: r.id, action: r.action, ok: !!row });
+    }
+  }
+  return out;
+}
+
 export async function setTaskStatus(
   ownerId: string,
   id: string,

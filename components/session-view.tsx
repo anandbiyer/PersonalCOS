@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { projectDay } from "@/lib/planner/calendar";
+import { overdueTriageItems, type OverdueTriageItem, type OverdueTaskRow } from "@/lib/planner/overdue";
 import type { CalItem, PlanTask, PlanEvent, PlanException } from "@/lib/planner/types";
 
 /**
@@ -100,6 +101,106 @@ function PlanCard({ plan, onAgree, onTweak, busy }: { plan: ProposedPlan; onAgre
   );
 }
 
+/** Past-due triage (FR55): one row per overdue item, resolved with Done /
+ *  Reschedule / Drop. Reschedule reveals an inline date-time picker; Apply
+ *  submits every resolution in one POST (no conversational round-trip). */
+type TriageChoice = "" | "done" | "reschedule" | "drop";
+function OverdueReviewCard({ items, overflow }: { items: OverdueTriageItem[]; overflow: number }) {
+  const router = useRouter();
+  const [choice, setChoice] = useState<Record<string, TriageChoice>>({});
+  const [when, setWhen] = useState<Record<string, string>>({}); // datetime-local per item
+  const [busy, setBusy] = useState(false);
+  const [done, setDone] = useState(false);
+
+  const wasDue = (iso: string | null) =>
+    iso ? new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : "";
+
+  const resolutions = items
+    .map((it) => {
+      const c = choice[it.id];
+      if (!c) return null; // untouched rows are a no-op (left overdue)
+      if (c === "reschedule") {
+        const w = when[it.id];
+        if (!w) return null; // reschedule chosen but no date yet → skip
+        return { id: it.id, action: "reschedule" as const, dueDate: new Date(w).toISOString() };
+      }
+      return { id: it.id, action: c };
+    })
+    .filter(Boolean) as { id: string; action: "done" | "reschedule" | "drop"; dueDate?: string }[];
+
+  async function apply() {
+    if (!resolutions.length) return;
+    setBusy(true);
+    try {
+      await fetch("/api/tasks/triage", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ resolutions }),
+      });
+      setDone(true);
+      router.refresh(); // resolved items drop out of the overdue set
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (done) {
+    return (
+      <div className="plancard">
+        <div className="ph">✓ Past-due items updated</div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="plancard revised">
+      <div className="ph">
+        ⏳ Past due — let&rsquo;s clear these
+        <span className="tagp">{items.length}</span>
+      </div>
+      {items.map((it) => (
+        <div className="pitem" key={it.id} style={{ flexDirection: "column", alignItems: "stretch", gap: 6 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
+            <span className="ptt">{it.name}</span>
+            <span className="ptm" style={{ color: "var(--muted)" }}>was due {wasDue(it.dueDate)}</span>
+          </div>
+          <div style={{ display: "flex", gap: 14, flexWrap: "wrap", fontSize: 13 }}>
+            {(["done", "reschedule", "drop"] as const).map((opt) => (
+              <label key={opt} style={{ display: "flex", alignItems: "center", gap: 4, cursor: "pointer" }}>
+                <input
+                  type="radio"
+                  name={`triage-${it.id}`}
+                  checked={choice[it.id] === opt}
+                  onChange={() => setChoice((c) => ({ ...c, [it.id]: opt }))}
+                />
+                {opt === "done" ? "Done" : opt === "reschedule" ? "Reschedule" : "Drop"}
+              </label>
+            ))}
+            {choice[it.id] === "reschedule" && (
+              <input
+                type="datetime-local"
+                value={when[it.id] ?? ""}
+                onChange={(e) => setWhen((w) => ({ ...w, [it.id]: e.target.value }))}
+                style={{ fontSize: 13 }}
+              />
+            )}
+          </div>
+        </div>
+      ))}
+      {overflow > 0 && (
+        <div className="pitem">
+          <span className="ptt" style={{ color: "var(--muted)" }}>+{overflow} more — review later</span>
+        </div>
+      )}
+      <div className="planacts">
+        <button className="pbtn agree" onClick={apply} disabled={busy || resolutions.length === 0}>
+          Apply
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export function SessionView({
   name,
   turns,
@@ -122,6 +223,13 @@ export function SessionView({
   const plan: CalItem[] = useMemo(
     () => (now ? projectDay(now, { tasks, events, exceptions }).items.filter((i) => !i.allDay) : []),
     [now, tasks, events, exceptions],
+  );
+
+  // FR55: actionable past-due items to triage, computed live from the ledger so
+  // the card is always current and vanishes once items are resolved.
+  const overdue = useMemo(
+    () => (now ? overdueTriageItems(tasks as unknown as OverdueTaskRow[], now) : { items: [], overflow: 0 }),
+    [now, tasks],
   );
 
   // Did the latest COS turn change today's plan? If so, we re-show the plan card
@@ -251,6 +359,12 @@ export function SessionView({
                 )}
               </div>
             </div>
+            {overdue.items.length > 0 && (
+              <div className="msg cos">
+                <div className="ava">CS</div>
+                <OverdueReviewCard items={overdue.items} overflow={overdue.overflow} />
+              </div>
+            )}
             <div className="msg cos">
               <div className="ava">CS</div>
               <div className="bubble">
